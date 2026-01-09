@@ -85,7 +85,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	help := "\nKeys: [h/l] prev/next day | [H/L] prev/next week | [t] today | [q] quit\n"
+	help := "\nKeys: [h/l] prev/next day | [H/L] prev/next week | [j/k] habit up/down | [t] today | [q] quit\n"
 	return m.calendar.View() + help
 }
 

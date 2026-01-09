@@ -33,12 +33,13 @@ type HabitEntry struct {
 
 // WeeklyCalendar is a bubbletea model for the weekly calendar view
 type WeeklyCalendar struct {
-	habits        []Habit
-	entries       map[string]map[time.Time]HabitEntry // habitName -> date -> entry
-	selectedDate  time.Time
-	viewStartDate time.Time // First day of the visible week
-	width         int
-	height        int
+	habits         []Habit
+	entries        map[string]map[time.Time]HabitEntry // habitName -> date -> entry
+	selectedDate   time.Time
+	selectedHabit  int // index of selected habit
+	viewStartDate  time.Time // First day of the visible week
+	width          int
+	height         int
 
 	// Styles
 	headerStyle       lipgloss.Style
@@ -48,7 +49,7 @@ type WeeklyCalendar struct {
 	selectedCellStyle lipgloss.Style
 	todayStyle        lipgloss.Style
 	habitLabelStyle   lipgloss.Style
-	borderStyle       lipgloss.Style
+	selectedHabitLabelStyle lipgloss.Style
 }
 
 // NewWeeklyCalendar creates a new weekly calendar component
@@ -62,12 +63,13 @@ func NewWeeklyCalendar(habits []Habit) *WeeklyCalendar {
 	weekStart := now.AddDate(0, 0, -(weekday - 1))
 
 	return &WeeklyCalendar{
-		habits:        habits,
-		entries:       make(map[string]map[time.Time]HabitEntry),
-		selectedDate:  now,
-		viewStartDate: weekStart,
-		width:         80,
-		height:        20,
+		habits:         habits,
+		entries:        make(map[string]map[time.Time]HabitEntry),
+		selectedDate:   now,
+		selectedHabit:  0,
+		viewStartDate:  weekStart,
+		width:          80,
+		height:         20,
 
 		// Initialize styles
 		headerStyle: lipgloss.NewStyle().
@@ -75,11 +77,12 @@ func NewWeeklyCalendar(habits []Habit) *WeeklyCalendar {
 			Foreground(lipgloss.Color("12")).
 			Padding(0, 1),
 		dateHeaderStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")).
+			Foreground(lipgloss.Color("15")).
+			Bold(true).
 			Align(lipgloss.Center).
 			Width(8),
 		dayNameStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("14")).
+			Foreground(lipgloss.Color("240")).
 			Align(lipgloss.Center).
 			Width(8),
 		cellStyle: lipgloss.NewStyle().
@@ -99,10 +102,12 @@ func NewWeeklyCalendar(habits []Habit) *WeeklyCalendar {
 			Foreground(lipgloss.Color("14")).
 			Width(20).
 			Align(lipgloss.Left),
-		borderStyle: lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("240")).
-			Padding(1, 2),
+		selectedHabitLabelStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("15")).
+			Background(lipgloss.Color("240")).
+			Width(20).
+			Align(lipgloss.Left).
+			Bold(true),
 	}
 }
 
@@ -132,6 +137,16 @@ func (w *WeeklyCalendar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Move to next week
 			w.selectedDate = w.selectedDate.AddDate(0, 0, 7)
 			w.viewStartDate = w.viewStartDate.AddDate(0, 0, 7)
+		case "j", "down":
+			// Move to next habit
+			if w.selectedHabit < len(w.habits)-1 {
+				w.selectedHabit++
+			}
+		case "k", "up":
+			// Move to previous habit
+			if w.selectedHabit > 0 {
+				w.selectedHabit--
+			}
 		case "t":
 			// Jump to today
 			now := time.Now()
@@ -186,18 +201,26 @@ func (w *WeeklyCalendar) View() string {
 		w.viewStartDate.Year(),
 	)
 	weekIndicator := fmt.Sprintf("◀ [%d/52] ▶", week)
+	
+	// Calculate spacing to fill the width
+	headerLen := len(header)
+	indicatorLen := len(weekIndicator)
+	spacingLen := w.width - headerLen - indicatorLen - 4
+	if spacingLen < 0 {
+		spacingLen = 0
+	}
+	
 	headerLine := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		w.headerStyle.Render(header),
-		lipgloss.NewStyle().Width(w.width-len(header)-len(weekIndicator)-4).Render(""),
+		strings.Repeat(" ", spacingLen),
 		w.headerStyle.Render(weekIndicator),
 	)
-	sb.WriteString(headerLine + "\n")
-	sb.WriteString(strings.Repeat("─", w.width) + "\n")
+	sb.WriteString(headerLine + "\n\n")
 
 	// Day names row
 	dayNames := []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
-	dayNamesRow := w.habitLabelStyle.Render("") // Empty space for habit labels
+	dayNamesRow := w.habitLabelStyle.Render("")
 	for _, day := range dayNames {
 		dayNamesRow += w.dayNameStyle.Render(day)
 	}
@@ -237,20 +260,25 @@ func (w *WeeklyCalendar) View() string {
 			todayIndicatorRow += w.cellStyle.Render("")
 		}
 	}
-	sb.WriteString(todayIndicatorRow + "\n")
-	sb.WriteString(strings.Repeat("─", w.width) + "\n")
+	sb.WriteString(todayIndicatorRow + "\n\n")
 
 	// Habit rows
-	for _, habit := range w.habits {
-		habitLabel := fmt.Sprintf("%s (%s)", habit.Name, w.habitTypeString(habit.Type))
-		row := w.habitLabelStyle.Render(habitLabel)
+	for idx, habit := range w.habits {
+		var habitLabel string
+		if idx == w.selectedHabit {
+			habitLabel = w.selectedHabitLabelStyle.Render(habit.Name)
+		} else {
+			habitLabel = w.habitLabelStyle.Render(habit.Name)
+		}
+		row := habitLabel
 
 		for i := 0; i < 7; i++ {
 			date := w.viewStartDate.AddDate(0, 0, i)
 			cellValue := w.getCellValue(habit, date)
 			
 			// Check if this cell is selected
-			isSelected := date.Year() == w.selectedDate.Year() && 
+			isSelected := idx == w.selectedHabit && 
+				date.Year() == w.selectedDate.Year() && 
 				date.Month() == w.selectedDate.Month() && 
 				date.Day() == w.selectedDate.Day()
 			
@@ -263,7 +291,7 @@ func (w *WeeklyCalendar) View() string {
 		sb.WriteString(row + "\n")
 	}
 
-	return w.borderStyle.Render(sb.String())
+	return sb.String()
 }
 
 // getCellValue returns the display value for a habit on a specific date
@@ -304,20 +332,6 @@ func (w *WeeklyCalendar) getDefaultValue(habit Habit, date time.Time) string {
 		return "?"
 	}
 	return "-"
-}
-
-// habitTypeString returns a string representation of habit type
-func (w *WeeklyCalendar) habitTypeString(ht HabitType) string {
-	switch ht {
-	case HabitTypeBit:
-		return "bit"
-	case HabitTypeCount:
-		return "count"
-	case HabitTypeFloat:
-		return "float"
-	default:
-		return "unknown"
-	}
 }
 
 // SetEntry sets an entry for a habit on a specific date
