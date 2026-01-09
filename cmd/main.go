@@ -4,6 +4,6 @@ import (
 	"example.com/habits/intenal/tui"
 )
 
-func main () {
+func main() {
 	tui.Execute()
 }

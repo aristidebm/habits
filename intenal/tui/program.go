@@ -28,7 +28,7 @@ func initialModel() model {
 	now := time.Now()
 	for i := -7; i < 0; i++ {
 		date := now.AddDate(0, 0, i)
-		
+
 		// Morning Run - alternating pattern
 		if i%2 == 0 {
 			calendar.SetEntry("Morning Run", date, true, "")

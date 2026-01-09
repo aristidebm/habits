@@ -33,22 +33,22 @@ type HabitEntry struct {
 
 // WeeklyCalendar is a bubbletea model for the weekly calendar view
 type WeeklyCalendar struct {
-	habits         []Habit
-	entries        map[string]map[time.Time]HabitEntry // habitName -> date -> entry
-	selectedDate   time.Time
-	selectedHabit  int // index of selected habit
-	viewStartDate  time.Time // First day of the visible week
-	width          int
-	height         int
+	habits        []Habit
+	entries       map[string]map[time.Time]HabitEntry // habitName -> date -> entry
+	selectedDate  time.Time
+	selectedHabit int       // index of selected habit
+	viewStartDate time.Time // First day of the visible week
+	width         int
+	height        int
 
 	// Styles
-	headerStyle       lipgloss.Style
-	dateHeaderStyle   lipgloss.Style
-	dayNameStyle      lipgloss.Style
-	cellStyle         lipgloss.Style
-	selectedCellStyle lipgloss.Style
-	todayStyle        lipgloss.Style
-	habitLabelStyle   lipgloss.Style
+	headerStyle             lipgloss.Style
+	dateHeaderStyle         lipgloss.Style
+	dayNameStyle            lipgloss.Style
+	cellStyle               lipgloss.Style
+	selectedCellStyle       lipgloss.Style
+	todayStyle              lipgloss.Style
+	habitLabelStyle         lipgloss.Style
 	selectedHabitLabelStyle lipgloss.Style
 }
 
@@ -63,13 +63,13 @@ func NewWeeklyCalendar(habits []Habit) *WeeklyCalendar {
 	weekStart := now.AddDate(0, 0, -(weekday - 1))
 
 	return &WeeklyCalendar{
-		habits:         habits,
-		entries:        make(map[string]map[time.Time]HabitEntry),
-		selectedDate:   now,
-		selectedHabit:  0,
-		viewStartDate:  weekStart,
-		width:          80,
-		height:         20,
+		habits:        habits,
+		entries:       make(map[string]map[time.Time]HabitEntry),
+		selectedDate:  now,
+		selectedHabit: 0,
+		viewStartDate: weekStart,
+		width:         80,
+		height:        20,
 
 		// Initialize styles
 		headerStyle: lipgloss.NewStyle().
@@ -201,7 +201,7 @@ func (w *WeeklyCalendar) View() string {
 		w.viewStartDate.Year(),
 	)
 	weekIndicator := fmt.Sprintf("◀ [%d/52] ▶", week)
-	
+
 	// Calculate spacing to fill the width
 	headerLen := len(header)
 	indicatorLen := len(weekIndicator)
@@ -209,7 +209,7 @@ func (w *WeeklyCalendar) View() string {
 	if spacingLen < 0 {
 		spacingLen = 0
 	}
-	
+
 	headerLine := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		w.headerStyle.Render(header),
@@ -241,12 +241,12 @@ func (w *WeeklyCalendar) View() string {
 	for i := 0; i < daysToShow; i++ {
 		date := w.viewStartDate.AddDate(0, 0, i)
 		dateStr := date.Format("02")
-		
+
 		// Check if this date is today
-		isToday := date.Year() == today.Year() && 
-			date.Month() == today.Month() && 
+		isToday := date.Year() == today.Year() &&
+			date.Month() == today.Month() &&
 			date.Day() == today.Day()
-		
+
 		if isToday {
 			datesRow += w.todayStyle.Render(dateStr)
 		} else {
@@ -259,12 +259,12 @@ func (w *WeeklyCalendar) View() string {
 	todayIndicatorRow := w.habitLabelStyle.Render("")
 	for i := 0; i < daysToShow; i++ {
 		date := w.viewStartDate.AddDate(0, 0, i)
-		isToday := date.Year() == today.Year() && 
-			date.Month() == today.Month() && 
+		isToday := date.Year() == today.Year() &&
+			date.Month() == today.Month() &&
 			date.Day() == today.Day()
-		
+
 		if isToday {
-			todayIndicatorRow += w.cellStyle.Render("▼ Today")
+			todayIndicatorRow += w.cellStyle.Render("▼")
 		} else {
 			todayIndicatorRow += w.cellStyle.Render("")
 		}
@@ -274,8 +274,7 @@ func (w *WeeklyCalendar) View() string {
 	// Habit rows - fill the remaining vertical space
 	// Calculate how many rows we can show
 	usedLines := 7 // header + spacing + day names + dates + today indicator + spacing
-	// availableLines := w.height - usedLines - 2 // -2 for help text
-	
+
 	// Create habit rows
 	habitRows := make([]string, len(w.habits))
 	for idx, habit := range w.habits {
@@ -290,13 +289,13 @@ func (w *WeeklyCalendar) View() string {
 		for i := 0; i < daysToShow; i++ {
 			date := w.viewStartDate.AddDate(0, 0, i)
 			cellValue := w.getCellValue(habit, date)
-			
+
 			// Check if this cell is selected
-			isSelected := idx == w.selectedHabit && 
-				date.Year() == w.selectedDate.Year() && 
-				date.Month() == w.selectedDate.Month() && 
+			isSelected := idx == w.selectedHabit &&
+				date.Year() == w.selectedDate.Year() &&
+				date.Month() == w.selectedDate.Month() &&
 				date.Day() == w.selectedDate.Day()
-			
+
 			if isSelected {
 				row += w.selectedCellStyle.Render(cellValue)
 			} else {
@@ -310,7 +309,7 @@ func (w *WeeklyCalendar) View() string {
 	for _, row := range habitRows {
 		sb.WriteString(row + "\n")
 	}
-	
+
 	// Fill remaining vertical space with empty lines if needed
 	linesUsed := usedLines + len(w.habits)
 	for i := linesUsed; i < w.height-2; i++ {
@@ -365,7 +364,7 @@ func (w *WeeklyCalendar) SetEntry(habitName string, date time.Time, completed bo
 	if w.entries[habitName] == nil {
 		w.entries[habitName] = make(map[time.Time]HabitEntry)
 	}
-	
+
 	// Normalize date to remove time component
 	dateKey := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
 	w.entries[habitName][dateKey] = HabitEntry{
