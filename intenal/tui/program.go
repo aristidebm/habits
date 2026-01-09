@@ -10,7 +10,7 @@ import (
 )
 
 type model struct {
-	calendar *calendar.WeeklyCalendar
+	calendar *calendar.Calendar
 }
 
 func initialModel() model {
@@ -22,41 +22,44 @@ func initialModel() model {
 		{Name: "Meditation", Type: calendar.HabitTypeBit},
 	}
 
-	calendar := calendar.NewWeeklyCalendar(habits)
+	calendar := calendar.NewCalendar(habits)
 
-	// Add some sample data
+	// Add sample data for the past 2 weeks and current month
 	now := time.Now()
-	for i := -7; i < 0; i++ {
-		date := now.AddDate(0, 0, i)
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+
+	// Fill data from start of month to today
+	for d := monthStart; !d.After(now); d = d.AddDate(0, 0, 1) {
+		dayOfMonth := d.Day()
 
 		// Morning Run - alternating pattern
-		if i%2 == 0 {
-			calendar.SetEntry("Morning Run", date, true, "")
+		if dayOfMonth%2 == 0 {
+			calendar.SetEntry("Morning Run", d, true, "")
 		} else {
-			calendar.SetEntry("Morning Run", date, false, "-")
+			calendar.SetEntry("Morning Run", d, false, "-")
 		}
 
-		// Read Pages - random numbers
-		if i%3 != 0 {
-			value := fmt.Sprintf("%d", 10+(-i)*2)
-			calendar.SetEntry("Read Pages", date, false, value)
+		// Read Pages - varying numbers
+		if dayOfMonth%3 != 0 {
+			value := fmt.Sprintf("%d", 10+(dayOfMonth%20))
+			calendar.SetEntry("Read Pages", d, false, value)
 		} else {
-			calendar.SetEntry("Read Pages", date, false, "-")
+			calendar.SetEntry("Read Pages", d, false, "-")
 		}
 
 		// Water - float values
-		if i%3 != 1 {
-			value := fmt.Sprintf("%.1f", 2.0+float64(-i)*0.1)
-			calendar.SetEntry("Water (L)", date, false, value)
+		if dayOfMonth%4 != 1 {
+			value := fmt.Sprintf("%.1f", 2.0+(float64(dayOfMonth%10)*0.1))
+			calendar.SetEntry("Water (L)", d, false, value)
 		} else {
-			calendar.SetEntry("Water (L)", date, false, "-")
+			calendar.SetEntry("Water (L)", d, false, "-")
 		}
 
 		// Meditation - mostly consistent
-		if i%4 != 0 {
-			calendar.SetEntry("Meditation", date, true, "")
+		if dayOfMonth%5 != 0 {
+			calendar.SetEntry("Meditation", d, true, "")
 		} else {
-			calendar.SetEntry("Meditation", date, false, "-")
+			calendar.SetEntry("Meditation", d, false, "-")
 		}
 	}
 
@@ -80,12 +83,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Update calendar
 	updated, cmd := m.calendar.Update(msg)
-	m.calendar = updated.(*calendar.WeeklyCalendar)
+	m.calendar = updated.(*calendar.Calendar)
 	return m, cmd
 }
 
 func (m model) View() string {
-	help := "\nKeys: [h/l] prev/next day | [H/L] prev/next week | [j/k] habit up/down | [t] today | [q] quit\n"
+	help := "\nKeys: [h/l] nav | [H/L] jump | [j/k] habit | [TAB] switch view | [t] today | [q] quit\n"
 	return m.calendar.View() + help
 }
 

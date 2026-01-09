@@ -1,0 +1,191 @@
+package calendar
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/charmbracelet/lipgloss"
+)
+
+// WeeklyView handles rendering of the weekly calendar view
+type WeeklyView struct {
+	calendar *Calendar
+
+	// Styles
+	headerStyle             lipgloss.Style
+	dateHeaderStyle         lipgloss.Style
+	dayNameStyle            lipgloss.Style
+	cellStyle               lipgloss.Style
+	selectedCellStyle       lipgloss.Style
+	todayStyle              lipgloss.Style
+	habitLabelStyle         lipgloss.Style
+	selectedHabitLabelStyle lipgloss.Style
+}
+
+// NewWeeklyView creates a new weekly view renderer
+func NewWeeklyView(calendar *Calendar) *WeeklyView {
+	return &WeeklyView{
+		calendar: calendar,
+
+		// Initialize styles
+		headerStyle: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("12")).
+			Padding(0, 1),
+		dateHeaderStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("15")).
+			Bold(true).
+			Align(lipgloss.Center).
+			Width(8),
+		dayNameStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			Align(lipgloss.Center).
+			Width(8),
+		cellStyle: lipgloss.NewStyle().
+			Align(lipgloss.Center).
+			Width(8),
+		selectedCellStyle: lipgloss.NewStyle().
+			Align(lipgloss.Center).
+			Width(8).
+			Background(lipgloss.Color("240")).
+			Foreground(lipgloss.Color("15")),
+		todayStyle: lipgloss.NewStyle().
+			Align(lipgloss.Center).
+			Width(8).
+			Foreground(lipgloss.Color("10")).
+			Bold(true),
+		habitLabelStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("14")).
+			Width(20).
+			Align(lipgloss.Left),
+		selectedHabitLabelStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("15")).
+			Background(lipgloss.Color("240")).
+			Width(20).
+			Align(lipgloss.Left).
+			Bold(true),
+	}
+}
+
+// Render renders the weekly view
+func (w *WeeklyView) Render() string {
+	var sb strings.Builder
+
+	// Calculate week number
+	_, week := w.calendar.viewStartDate.ISOWeek()
+	endDate := w.calendar.viewStartDate.AddDate(0, 0, 6)
+
+	// Header with week range and week number
+	header := fmt.Sprintf("Week: %s - %s, %d",
+		w.calendar.viewStartDate.Format("Jan 02"),
+		endDate.Format("Jan 02"),
+		w.calendar.viewStartDate.Year(),
+	)
+	weekIndicator := fmt.Sprintf("◀ [%d/52] ▶", week)
+
+	// Calculate spacing to fill the width
+	headerLen := len(header)
+	indicatorLen := len(weekIndicator)
+	spacingLen := w.calendar.width - headerLen - indicatorLen - 4
+	if spacingLen < 0 {
+		spacingLen = 0
+	}
+
+	headerLine := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		w.headerStyle.Render(header),
+		strings.Repeat(" ", spacingLen),
+		w.headerStyle.Render(weekIndicator),
+	)
+	sb.WriteString(headerLine + "\n\n")
+
+	// Calculate how many days can fit in the available width
+	availableWidth := w.calendar.width - 20
+	daysToShow := availableWidth / 8
+	if daysToShow < 7 {
+		daysToShow = 7
+	}
+
+	// Day names row
+	dayNames := []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
+	dayNamesRow := w.habitLabelStyle.Render("")
+	for i := 0; i < daysToShow; i++ {
+		dayName := dayNames[i%7]
+		dayNamesRow += w.dayNameStyle.Render(dayName)
+	}
+	sb.WriteString(dayNamesRow + "\n")
+
+	// Dates row
+	datesRow := w.habitLabelStyle.Render("")
+	today := time.Now()
+	for i := 0; i < daysToShow; i++ {
+		date := w.calendar.viewStartDate.AddDate(0, 0, i)
+		dateStr := date.Format("02")
+
+		isToday := date.Year() == today.Year() &&
+			date.Month() == today.Month() &&
+			date.Day() == today.Day()
+
+		if isToday {
+			datesRow += w.todayStyle.Render(dateStr)
+		} else {
+			datesRow += w.dateHeaderStyle.Render(dateStr)
+		}
+	}
+	sb.WriteString(datesRow + "\n")
+
+	// Today indicator
+	todayIndicatorRow := w.habitLabelStyle.Render("")
+	for i := 0; i < daysToShow; i++ {
+		date := w.calendar.viewStartDate.AddDate(0, 0, i)
+		isToday := date.Year() == today.Year() &&
+			date.Month() == today.Month() &&
+			date.Day() == today.Day()
+
+		if isToday {
+			todayIndicatorRow += w.cellStyle.Render("▼")
+		} else {
+			todayIndicatorRow += w.cellStyle.Render("")
+		}
+	}
+	sb.WriteString(todayIndicatorRow + "\n\n")
+
+	// Habit rows
+	usedLines := 7 // header + spacing + day names + dates + today indicator + spacing
+
+	for idx, habit := range w.calendar.habits {
+		var habitLabel string
+		if idx == w.calendar.selectedHabit {
+			habitLabel = w.selectedHabitLabelStyle.Render(habit.Name)
+		} else {
+			habitLabel = w.habitLabelStyle.Render(habit.Name)
+		}
+		row := habitLabel
+
+		for i := 0; i < daysToShow; i++ {
+			date := w.calendar.viewStartDate.AddDate(0, 0, i)
+			cellValue := w.calendar.GetCellValue(habit, date)
+
+			isSelected := idx == w.calendar.selectedHabit &&
+				date.Year() == w.calendar.selectedDate.Year() &&
+				date.Month() == w.calendar.selectedDate.Month() &&
+				date.Day() == w.calendar.selectedDate.Day()
+
+			if isSelected {
+				row += w.selectedCellStyle.Render(cellValue)
+			} else {
+				row += w.cellStyle.Render(cellValue)
+			}
+		}
+		sb.WriteString(row + "\n")
+	}
+
+	// Fill remaining vertical space
+	linesUsed := usedLines + len(w.calendar.habits)
+	for i := linesUsed; i < w.calendar.height-2; i++ {
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
+}
