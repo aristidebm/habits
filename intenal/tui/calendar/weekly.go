@@ -218,18 +218,27 @@ func (w *WeeklyCalendar) View() string {
 	)
 	sb.WriteString(headerLine + "\n\n")
 
+	// Calculate how many days can fit in the available width
+	// Each day takes 8 characters, habit label takes 20 characters
+	availableWidth := w.width - 20
+	daysToShow := availableWidth / 8
+	if daysToShow < 7 {
+		daysToShow = 7 // minimum one week
+	}
+
 	// Day names row
 	dayNames := []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
 	dayNamesRow := w.habitLabelStyle.Render("")
-	for _, day := range dayNames {
-		dayNamesRow += w.dayNameStyle.Render(day)
+	for i := 0; i < daysToShow; i++ {
+		dayName := dayNames[i%7]
+		dayNamesRow += w.dayNameStyle.Render(dayName)
 	}
 	sb.WriteString(dayNamesRow + "\n")
 
 	// Dates row
 	datesRow := w.habitLabelStyle.Render("")
 	today := time.Now()
-	for i := 0; i < 7; i++ {
+	for i := 0; i < daysToShow; i++ {
 		date := w.viewStartDate.AddDate(0, 0, i)
 		dateStr := date.Format("02")
 		
@@ -248,7 +257,7 @@ func (w *WeeklyCalendar) View() string {
 
 	// Today indicator
 	todayIndicatorRow := w.habitLabelStyle.Render("")
-	for i := 0; i < 7; i++ {
+	for i := 0; i < daysToShow; i++ {
 		date := w.viewStartDate.AddDate(0, 0, i)
 		isToday := date.Year() == today.Year() && 
 			date.Month() == today.Month() && 
@@ -262,7 +271,13 @@ func (w *WeeklyCalendar) View() string {
 	}
 	sb.WriteString(todayIndicatorRow + "\n\n")
 
-	// Habit rows
+	// Habit rows - fill the remaining vertical space
+	// Calculate how many rows we can show
+	usedLines := 7 // header + spacing + day names + dates + today indicator + spacing
+	// availableLines := w.height - usedLines - 2 // -2 for help text
+	
+	// Create habit rows
+	habitRows := make([]string, len(w.habits))
 	for idx, habit := range w.habits {
 		var habitLabel string
 		if idx == w.selectedHabit {
@@ -272,7 +287,7 @@ func (w *WeeklyCalendar) View() string {
 		}
 		row := habitLabel
 
-		for i := 0; i < 7; i++ {
+		for i := 0; i < daysToShow; i++ {
 			date := w.viewStartDate.AddDate(0, 0, i)
 			cellValue := w.getCellValue(habit, date)
 			
@@ -288,7 +303,18 @@ func (w *WeeklyCalendar) View() string {
 				row += w.cellStyle.Render(cellValue)
 			}
 		}
+		habitRows[idx] = row
+	}
+
+	// Write habit rows
+	for _, row := range habitRows {
 		sb.WriteString(row + "\n")
+	}
+	
+	// Fill remaining vertical space with empty lines if needed
+	linesUsed := usedLines + len(w.habits)
+	for i := linesUsed; i < w.height-2; i++ {
+		sb.WriteString("\n")
 	}
 
 	return sb.String()
