@@ -13,15 +13,15 @@ type MonthlyView struct {
 	calendar *Calendar
 
 	// Styles
-	headerStyle    lipgloss.Style
-	subHeaderStyle lipgloss.Style
-	dayNameStyle   lipgloss.Style
-	dateStyle      lipgloss.Style
-	todayDateStyle lipgloss.Style
-	valueStyle     lipgloss.Style
-	selectedStyle  lipgloss.Style
-	emptyDateStyle lipgloss.Style
-	statsStyle     lipgloss.Style
+	headerStyle        lipgloss.Style
+	dateHeaderStyle    lipgloss.Style
+	dayNameStyle       lipgloss.Style
+	habitLabelStyle    lipgloss.Style
+	selectedHabitStyle lipgloss.Style
+	cellStyle          lipgloss.Style
+	selectedCellStyle  lipgloss.Style
+	todayStyle         lipgloss.Style
+	emptyStyle         lipgloss.Style
 }
 
 // NewMonthlyView creates a new monthly view renderer
@@ -34,38 +34,42 @@ func NewMonthlyView(calendar *Calendar) *MonthlyView {
 			Bold(true).
 			Foreground(lipgloss.Color("12")).
 			Padding(0, 1),
-		subHeaderStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("14")).
-			Padding(0, 1),
-		dayNameStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("14")).
+		dateHeaderStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("15")).
+			Bold(true).
 			Align(lipgloss.Center).
-			Width(10),
-		dateStyle: lipgloss.NewStyle().
+			Width(5),
+		dayNameStyle: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240")).
-			Align(lipgloss.Right).
-			Width(10),
-		todayDateStyle: lipgloss.NewStyle().
+			Align(lipgloss.Center).
+			Width(5),
+		habitLabelStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("14")).
+			Width(20).
+			Align(lipgloss.Left),
+		selectedHabitStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("15")).
+			Background(lipgloss.Color("240")).
+			Width(20).
+			Align(lipgloss.Left).
+			Bold(true),
+		cellStyle: lipgloss.NewStyle().
+			Align(lipgloss.Center).
+			Width(5),
+		selectedCellStyle: lipgloss.NewStyle().
+			Align(lipgloss.Center).
+			Width(5).
+			Background(lipgloss.Color("240")).
+			Foreground(lipgloss.Color("15")),
+		todayStyle: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("10")).
 			Bold(true).
-			Align(lipgloss.Right).
-			Width(10),
-		valueStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("15")).
 			Align(lipgloss.Center).
-			Width(10),
-		selectedStyle: lipgloss.NewStyle().
-			Background(lipgloss.Color("240")).
-			Foreground(lipgloss.Color("15")).
-			Align(lipgloss.Center).
-			Width(10),
-		emptyDateStyle: lipgloss.NewStyle().
+			Width(5),
+		emptyStyle: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("235")).
 			Align(lipgloss.Center).
-			Width(10),
-		statsStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("14")).
-			Padding(0, 1),
+			Width(5),
 	}
 }
 
@@ -77,19 +81,16 @@ func (m *MonthlyView) Render() string {
 
 	var sb strings.Builder
 
-	currentHabit := m.calendar.habits[m.calendar.selectedHabit]
-
-	// Header with month/year and habit info
-	header := fmt.Sprintf("%s %d - %s",
+	// Header with month/year
+	header := fmt.Sprintf("%s %d",
 		m.calendar.viewMonth.Format("January"),
 		m.calendar.viewMonth.Year(),
-		currentHabit.Name,
 	)
-	habitIndicator := fmt.Sprintf("[Habit %d/%d]", m.calendar.selectedHabit+1, len(m.calendar.habits))
+	monthIndicator := fmt.Sprintf("◀ [Month %d/12] ▶", int(m.calendar.viewMonth.Month()))
 
 	// Calculate spacing
 	headerLen := len(header)
-	indicatorLen := len(habitIndicator)
+	indicatorLen := len(monthIndicator)
 	spacingLen := m.calendar.width - headerLen - indicatorLen - 4
 	if spacingLen < 0 {
 		spacingLen = 0
@@ -99,99 +100,85 @@ func (m *MonthlyView) Render() string {
 		lipgloss.Top,
 		m.headerStyle.Render(header),
 		strings.Repeat(" ", spacingLen),
-		m.subHeaderStyle.Render(habitIndicator),
+		m.headerStyle.Render(monthIndicator),
 	)
-	sb.WriteString(headerLine + "\n")
-	sb.WriteString(strings.Repeat("─", m.calendar.width) + "\n")
+	sb.WriteString(headerLine + "\n\n")
 
-	// Day names header
-	dayNames := []string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}
-	dayNamesRow := ""
-	for _, day := range dayNames {
-		dayNamesRow += m.dayNameStyle.Render(day)
-	}
-	sb.WriteString(dayNamesRow + "\n")
-
-	// Get first day of month and calculate starting position
-	firstDay := m.calendar.viewMonth
-	weekday := int(firstDay.Weekday()) // 0 = Sunday
-
-	// Get last day of month
+	// Get first and last day of month
 	nextMonth := m.calendar.viewMonth.AddDate(0, 1, 0)
 	lastDay := nextMonth.AddDate(0, 0, -1)
 	daysInMonth := lastDay.Day()
 
+	// Build date headers (showing all days 1-31)
+	dateHeaderRow := m.habitLabelStyle.Render("")
 	today := time.Now()
-	currentDay := 1
-	done := false
 
-	// Generate calendar rows
-	for week := 0; week < 6 && !done; week++ {
-		sb.WriteString(strings.Repeat("─", m.calendar.width) + "\n")
+	for day := 1; day <= daysInMonth; day++ {
+		date := time.Date(m.calendar.viewMonth.Year(), m.calendar.viewMonth.Month(), day, 0, 0, 0, 0, time.UTC)
+		dateStr := fmt.Sprintf("%d", day)
 
-		// Date row
-		dateRow := ""
-		for day := 0; day < 7; day++ {
-			if (week == 0 && day < weekday) || currentDay > daysInMonth {
-				dateRow += m.emptyDateStyle.Render("")
+		isToday := date.Year() == today.Year() &&
+			date.Month() == today.Month() &&
+			date.Day() == today.Day()
+
+		if isToday {
+			dateHeaderRow += m.todayStyle.Render(dateStr)
+		} else {
+			dateHeaderRow += m.dateHeaderStyle.Render(dateStr)
+		}
+	}
+	sb.WriteString(dateHeaderRow + "\n")
+
+	// Day of week abbreviations (M T W T F S S pattern)
+	dayOfWeekRow := m.habitLabelStyle.Render("")
+	dayAbbrevs := []string{"S", "M", "T", "W", "T", "F", "S"}
+
+	for day := 1; day <= daysInMonth; day++ {
+		date := time.Date(m.calendar.viewMonth.Year(), m.calendar.viewMonth.Month(), day, 0, 0, 0, 0, time.UTC)
+		weekday := int(date.Weekday())
+		dayOfWeekRow += m.dayNameStyle.Render(dayAbbrevs[weekday])
+	}
+	sb.WriteString(dayOfWeekRow + "\n\n")
+
+	// Habit rows - show all habits
+	for idx, habit := range m.calendar.habits {
+		var habitLabel string
+		if idx == m.calendar.selectedHabit {
+			habitLabel = m.selectedHabitStyle.Render(habit.Name)
+		} else {
+			habitLabel = m.habitLabelStyle.Render(habit.Name)
+		}
+		row := habitLabel
+
+		for day := 1; day <= daysInMonth; day++ {
+			date := time.Date(m.calendar.viewMonth.Year(), m.calendar.viewMonth.Month(), day, 0, 0, 0, 0, time.UTC)
+			cellValue := m.getCompactCellValue(habit, date)
+
+			// Check if this cell is selected
+			isSelected := idx == m.calendar.selectedHabit &&
+				date.Year() == m.calendar.selectedDate.Year() &&
+				date.Month() == m.calendar.selectedDate.Month() &&
+				date.Day() == m.calendar.selectedDate.Day()
+
+			if isSelected {
+				row += m.selectedCellStyle.Render(cellValue)
 			} else {
-				date := time.Date(m.calendar.viewMonth.Year(), m.calendar.viewMonth.Month(), currentDay, 0, 0, 0, 0, time.UTC)
-				dateStr := fmt.Sprintf("%d", currentDay)
-
-				isToday := date.Year() == today.Year() &&
-					date.Month() == today.Month() &&
-					date.Day() == today.Day()
-
-				if isToday {
-					dateRow += m.todayDateStyle.Render(dateStr)
-				} else {
-					dateRow += m.dateStyle.Render(dateStr)
-				}
-
-				if currentDay == daysInMonth {
-					done = true
-				}
-				currentDay++
+				row += m.cellStyle.Render(cellValue)
 			}
 		}
-		sb.WriteString(dateRow + "\n")
-
-		// Value row
-		valueRow := ""
-		currentDay -= 7
-		if currentDay < 1 {
-			currentDay = 1
-		}
-
-		for day := 0; day < 7; day++ {
-			if (week == 0 && day < weekday) || currentDay > daysInMonth {
-				valueRow += m.emptyDateStyle.Render("")
-			} else {
-				date := time.Date(m.calendar.viewMonth.Year(), m.calendar.viewMonth.Month(), currentDay, 0, 0, 0, 0, time.UTC)
-				cellValue := m.calendar.GetCellValue(currentHabit, date)
-
-				isSelected := date.Year() == m.calendar.selectedDate.Year() &&
-					date.Month() == m.calendar.selectedDate.Month() &&
-					date.Day() == m.calendar.selectedDate.Day()
-
-				if isSelected {
-					valueRow += m.selectedStyle.Render(cellValue)
-				} else {
-					valueRow += m.valueStyle.Render(cellValue)
-				}
-				currentDay++
-			}
-		}
-		sb.WriteString(valueRow + "\n")
+		sb.WriteString(row + "\n")
 	}
 
-	sb.WriteString(strings.Repeat("─", m.calendar.width) + "\n")
+	sb.WriteString("\n")
 
-	// Statistics
-	stats := m.calculateStats(currentHabit)
-	statsLine := fmt.Sprintf("[TAB] Switch view  [Stats] Streak: %d  Rate: %d%%",
-		stats.Streak, stats.CompletionRate)
-	sb.WriteString(m.statsStyle.Render(statsLine) + "\n")
+	// Stats for selected habit
+	if m.calendar.selectedHabit < len(m.calendar.habits) {
+		currentHabit := m.calendar.habits[m.calendar.selectedHabit]
+		stats := m.calculateStats(currentHabit)
+		statsLine := fmt.Sprintf("Selected: %s | Streak: %d days | Completion: %d%%",
+			currentHabit.Name, stats.Streak, stats.CompletionRate)
+		sb.WriteString(m.habitLabelStyle.Render(statsLine) + "\n")
+	}
 
 	// Fill remaining vertical space
 	lines := strings.Count(sb.String(), "\n")
@@ -200,6 +187,42 @@ func (m *MonthlyView) Render() string {
 	}
 
 	return sb.String()
+}
+
+// getCompactCellValue returns a compact display value for a habit on a specific date
+func (m *MonthlyView) getCompactCellValue(habit Habit, date time.Time) string {
+	entry, exists := m.calendar.GetEntry(habit.Name, date)
+
+	today := time.Now()
+	if date.After(today) {
+		return "·"
+	}
+
+	if !exists {
+		return "-"
+	}
+
+	switch habit.Type {
+	case HabitTypeBit:
+		if entry.Completed {
+			return "●"
+		}
+		return "-"
+	case HabitTypeCount:
+		if entry.Value == "-" || entry.Value == "" {
+			return "-"
+		}
+		// Show a filled circle for any count value
+		return "●"
+	case HabitTypeFloat:
+		if entry.Value == "-" || entry.Value == "" {
+			return "-"
+		}
+		// Show a filled circle for any float value
+		return "●"
+	}
+
+	return "-"
 }
 
 // HabitStats holds statistics for a habit
