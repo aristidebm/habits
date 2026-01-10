@@ -73,7 +73,7 @@ func NewMonthlyView(calendar *Calendar) *MonthlyView {
 	}
 }
 
-// Render renders the monthly view
+// Render renders the monthly view in Dijo-style grid format
 func (m *MonthlyView) Render() string {
 	if len(m.calendar.habits) == 0 {
 		return "No habits to display"
@@ -109,38 +109,28 @@ func (m *MonthlyView) Render() string {
 	lastDay := nextMonth.AddDate(0, 0, -1)
 	daysInMonth := lastDay.Day()
 
-	// Build date headers (showing all days 1-31)
-	dateHeaderRow := m.habitLabelStyle.Render("")
+	// Calculate week layout - find first day of month and its weekday
+	firstDay := time.Date(m.calendar.viewMonth.Year(), m.calendar.viewMonth.Month(), 1, 0, 0, 0, 0, time.UTC)
+	firstWeekday := int(firstDay.Weekday())
+	if firstWeekday == 0 {
+		firstWeekday = 7 // Sunday becomes 7
+	}
+
+	// Calculate number of weeks needed (including partial weeks)
+	numWeeks := (daysInMonth+firstWeekday-2)/7 + 1
+
+	// Build day of week headers (M T W T F S S)
+	dayOfWeekRow := m.habitLabelStyle.Render("  ")
+	dayAbbrevs := []string{"M", "T", "W", "T", "F", "S", "S"}
+
+	for _, dayAbbrev := range dayAbbrevs {
+		dayOfWeekRow += m.dayNameStyle.Render(dayAbbrev)
+	}
+	sb.WriteString(dayOfWeekRow + "\n")
+
 	today := time.Now()
 
-	for day := 1; day <= daysInMonth; day++ {
-		date := time.Date(m.calendar.viewMonth.Year(), m.calendar.viewMonth.Month(), day, 0, 0, 0, 0, time.UTC)
-		dateStr := fmt.Sprintf("%d", day)
-
-		isToday := date.Year() == today.Year() &&
-			date.Month() == today.Month() &&
-			date.Day() == today.Day()
-
-		if isToday {
-			dateHeaderRow += m.todayStyle.Render(dateStr)
-		} else {
-			dateHeaderRow += m.dateHeaderStyle.Render(dateStr)
-		}
-	}
-	sb.WriteString(dateHeaderRow + "\n")
-
-	// Day of week abbreviations (M T W T F S S pattern)
-	dayOfWeekRow := m.habitLabelStyle.Render("")
-	dayAbbrevs := []string{"S", "M", "T", "W", "T", "F", "S"}
-
-	for day := 1; day <= daysInMonth; day++ {
-		date := time.Date(m.calendar.viewMonth.Year(), m.calendar.viewMonth.Month(), day, 0, 0, 0, 0, time.UTC)
-		weekday := int(date.Weekday())
-		dayOfWeekRow += m.dayNameStyle.Render(dayAbbrevs[weekday])
-	}
-	sb.WriteString(dayOfWeekRow + "\n\n")
-
-	// Habit rows - show all habits
+	// Render each habit with its own calendar grid
 	for idx, habit := range m.calendar.habits {
 		var habitLabel string
 		if idx == m.calendar.selectedHabit {
@@ -148,28 +138,50 @@ func (m *MonthlyView) Render() string {
 		} else {
 			habitLabel = m.habitLabelStyle.Render(habit.Name)
 		}
-		row := habitLabel
+		sb.WriteString(habitLabel + "\n")
 
-		for day := 1; day <= daysInMonth; day++ {
-			date := time.Date(m.calendar.viewMonth.Year(), m.calendar.viewMonth.Month(), day, 0, 0, 0, 0, time.UTC)
-			cellValue := m.getCompactCellValue(habit, date)
+		// Render calendar grid for this habit
+		for week := 0; week < numWeeks; week++ {
+			weekRow := m.habitLabelStyle.Render("  ") // Indent for habit label
 
-			// Check if this cell is selected
-			isSelected := idx == m.calendar.selectedHabit &&
-				date.Year() == m.calendar.selectedDate.Year() &&
-				date.Month() == m.calendar.selectedDate.Month() &&
-				date.Day() == m.calendar.selectedDate.Day()
+			for dayOfWeek := 0; dayOfWeek < 7; dayOfWeek++ {
+				// Calculate the actual day number
+				dayNumber := week*7 + dayOfWeek - (firstWeekday - 2)
 
-			if isSelected {
-				row += m.selectedCellStyle.Render(cellValue)
-			} else {
-				row += m.cellStyle.Render(cellValue)
+				if dayNumber < 1 || dayNumber > daysInMonth {
+					// Empty cell for days outside current month
+					weekRow += m.emptyStyle.Render(" ")
+					continue
+				}
+
+				date := time.Date(m.calendar.viewMonth.Year(), m.calendar.viewMonth.Month(), dayNumber, 0, 0, 0, 0, time.UTC)
+				cellValue := m.getCompactCellValue(habit, date)
+
+				// Check if this cell is selected
+				isSelected := idx == m.calendar.selectedHabit &&
+					date.Year() == m.calendar.selectedDate.Year() &&
+					date.Month() == m.calendar.selectedDate.Month() &&
+					date.Day() == m.calendar.selectedDate.Day()
+
+				// Check if this cell is today
+				isToday := date.Year() == today.Year() &&
+					date.Month() == today.Month() &&
+					date.Day() == today.Day()
+
+				if isSelected {
+					weekRow += m.selectedCellStyle.Render(cellValue)
+				} else if isToday {
+					weekRow += m.todayStyle.Render(cellValue)
+				} else {
+					weekRow += m.cellStyle.Render(cellValue)
+				}
 			}
-		}
-		sb.WriteString(row + "\n")
-	}
 
-	sb.WriteString("\n")
+			sb.WriteString(weekRow + "\n")
+		}
+
+		sb.WriteString("\n") // Spacing between habits
+	}
 
 	// Stats for selected habit
 	if m.calendar.selectedHabit < len(m.calendar.habits) {
