@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+
 // ViewMode represents different calendar view modes
 type ViewMode int
 
@@ -170,8 +171,12 @@ func (c *Calendar) handleLeftNavigation() {
 		c.adjustWeeklyViewToSelection()
 		
 	case ViewModeMonthly:
-		// Move to previous month
-		c.viewMonth = c.viewMonth.AddDate(0, -1, 0)
+		// Move to previous day
+		c.selectedDate = c.selectedDate.AddDate(0, 0, -1)
+		// Adjust month view if we moved to previous month
+		if c.selectedDate.Month() != c.viewMonth.Month() || c.selectedDate.Year() != c.viewMonth.Year() {
+			c.viewMonth = time.Date(c.selectedDate.Year(), c.selectedDate.Month(), 1, 0, 0, 0, 0, time.UTC)
+		}
 	}
 }
 
@@ -184,8 +189,12 @@ func (c *Calendar) handleRightNavigation() {
 		c.adjustWeeklyViewToSelection()
 		
 	case ViewModeMonthly:
-		// Move to next month
-		c.viewMonth = c.viewMonth.AddDate(0, 1, 0)
+		// Move to next day
+		c.selectedDate = c.selectedDate.AddDate(0, 0, 1)
+		// Adjust month view if we moved to next month
+		if c.selectedDate.Month() != c.viewMonth.Month() || c.selectedDate.Year() != c.viewMonth.Year() {
+			c.viewMonth = time.Date(c.selectedDate.Year(), c.selectedDate.Month(), 1, 0, 0, 0, 0, time.UTC)
+		}
 	}
 }
 
@@ -198,8 +207,10 @@ func (c *Calendar) handleLeftJump() {
 		c.viewStartDate = c.viewStartDate.AddDate(0, 0, -7)
 		
 	case ViewModeMonthly:
-		// Move to previous year
-		c.viewMonth = c.viewMonth.AddDate(-1, 0, 0)
+		// Move to previous month
+		c.viewMonth = c.viewMonth.AddDate(0, -1, 0)
+		// Keep selected date in the same day of month if possible
+		c.selectedDate = c.selectedDate.AddDate(0, -1, 0)
 	}
 }
 
@@ -212,8 +223,10 @@ func (c *Calendar) handleRightJump() {
 		c.viewStartDate = c.viewStartDate.AddDate(0, 0, 7)
 		
 	case ViewModeMonthly:
-		// Move to next year
-		c.viewMonth = c.viewMonth.AddDate(1, 0, 0)
+		// Move to next month
+		c.viewMonth = c.viewMonth.AddDate(0, 1, 0)
+		// Keep selected date in the same day of month if possible
+		c.selectedDate = c.selectedDate.AddDate(0, 1, 0)
 	}
 }
 
