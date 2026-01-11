@@ -9,8 +9,40 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// ResultType represents the type of command result
+type ResultType int
+
+const (
+	ResultSuccess ResultType = iota
+	ResultError
+	ResultQuit
+)
+
+// Result represents the outcome of a command execution
+type Result struct {
+	Type    ResultType
+	Message string
+	Cmd     tea.Cmd
+}
+
+// Success creates a success result
+func Success(msg string) Result {
+	return Result{Type: ResultSuccess, Message: msg}
+}
+
+// Error creates an error result
+func Error(msg string) Result {
+	return Result{Type: ResultError, Message: msg}
+}
+
+// Quit creates a quit result
+func Quit() Result {
+	return Result{Type: ResultQuit, Cmd: tea.Quit}
+}
+
 // CommandFunc is the function signature for command handlers
-type CommandFunc func(args []string) tea.Cmd
+// Each handler validates its own arguments and returns a Result
+type CommandFunc func(args []string) Result
 
 // Command represents a registerable command
 type Command struct {
@@ -153,7 +185,7 @@ func (c *CommandLine) executeCommand() tea.Cmd {
 		args = parts[1:]
 	}
 
-	// Find and execute command
+	// Find command
 	cmd, exists := c.commands[cmdName]
 	if !exists {
 		c.lastError = fmt.Sprintf("Unknown command: %s", cmdName)
@@ -162,21 +194,37 @@ func (c *CommandLine) executeCommand() tea.Cmd {
 	}
 
 	c.Hide()
-	return cmd.Handler(args)
+
+	// Execute command - handler does its own validation
+	result := cmd.Handler(args)
+
+	// Handle result
+	switch result.Type {
+	case ResultSuccess:
+		c.lastSuccess = result.Message
+		c.lastError = ""
+	case ResultError:
+		c.lastError = result.Message
+		c.lastSuccess = ""
+	case ResultQuit:
+		// Clear messages before quitting
+		c.lastSuccess = ""
+		c.lastError = ""
+	}
+
+	return result.Cmd
 }
 
 // handleHelp handles the help command
-func (c *CommandLine) handleHelp(args []string) tea.Cmd {
+func (c *CommandLine) handleHelp(args []string) Result {
 	if len(args) > 0 {
 		// Show help for specific command
 		cmdName := args[0]
 		cmd, exists := c.commands[cmdName]
 		if !exists {
-			c.lastError = fmt.Sprintf("Unknown command: %s", cmdName)
-			return nil
+			return Error(fmt.Sprintf("Unknown command: %s", cmdName))
 		}
-		c.lastSuccess = fmt.Sprintf("%s: %s\nUsage: %s", cmd.Name, cmd.Description, cmd.Usage)
-		return nil
+		return Success(fmt.Sprintf("%s: %s\nUsage: %s", cmd.Name, cmd.Description, cmd.Usage))
 	}
 
 	// Show all commands
@@ -185,8 +233,7 @@ func (c *CommandLine) handleHelp(args []string) tea.Cmd {
 	for _, cmd := range c.commands {
 		help.WriteString(fmt.Sprintf("  %-15s %s\n", cmd.Name, cmd.Description))
 	}
-	c.lastSuccess = help.String()
-	return nil
+	return Success(help.String())
 }
 
 // SetError sets an error message to display

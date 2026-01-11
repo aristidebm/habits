@@ -170,12 +170,12 @@ func (p *Program) View() string {
 	return view.String()
 }
 
-// Command handlers
+// Command handlers - each validates its own arguments
 
-func (p *Program) handleAddCommand(args []string) tea.Cmd {
+func (p *Program) handleAddCommand(args []string) command.Result {
+	// Validate arguments
 	if len(args) < 2 {
-		p.commandLine.SetError("Usage: add <name> <type>")
-		return nil
+		return command.Error("Usage: add <name> <type>")
 	}
 
 	name := args[0]
@@ -190,42 +190,40 @@ func (p *Program) handleAddCommand(args []string) tea.Cmd {
 	case "float":
 		habitType = app.HabitTypeFloat
 	default:
-		p.commandLine.SetError(fmt.Sprintf("Invalid habit type: %s (use: bit, count, float)", typeStr))
-		return nil
+		return command.Error(fmt.Sprintf("Invalid habit type: %s (use: bit, count, float)", typeStr))
 	}
 
+	// Execute command
 	if err := p.app.AddHabit(name, habitType); err != nil {
-		p.commandLine.SetError(fmt.Sprintf("Error: %s", err))
-		return nil
+		return command.Error(fmt.Sprintf("Error: %s", err))
 	}
 
 	// Reload calendar with new habits
 	p.reloadCalendar()
-	p.commandLine.SetSuccess(fmt.Sprintf("Added habit: %s", name))
-	return nil
+	return command.Success(fmt.Sprintf("Added habit: %s", name))
 }
 
-func (p *Program) handleDeleteCommand(args []string) tea.Cmd {
+func (p *Program) handleDeleteCommand(args []string) command.Result {
+	// Validate arguments
 	if len(args) < 1 {
-		p.commandLine.SetError("Usage: delete <name>")
-		return nil
+		return command.Error("Usage: delete <name>")
 	}
 
 	name := args[0]
+
+	// Execute command
 	if err := p.app.DeleteHabit(name); err != nil {
-		p.commandLine.SetError(fmt.Sprintf("Error: %s", err))
-		return nil
+		return command.Error(fmt.Sprintf("Error: %s", err))
 	}
 
 	p.reloadCalendar()
-	p.commandLine.SetSuccess(fmt.Sprintf("Deleted habit: %s", name))
-	return nil
+	return command.Success(fmt.Sprintf("Deleted habit: %s", name))
 }
 
-func (p *Program) handleTrackUpCommand(args []string) tea.Cmd {
+func (p *Program) handleTrackUpCommand(args []string) command.Result {
+	// Validate arguments
 	if len(args) < 1 {
-		p.commandLine.SetError("Usage: track-up <habit> [value]")
-		return nil
+		return command.Error("Usage: track-up <habit> [value]")
 	}
 
 	habitName := args[0]
@@ -234,51 +232,49 @@ func (p *Program) handleTrackUpCommand(args []string) tea.Cmd {
 		value = args[1]
 	}
 
+	// Execute command
 	selectedDate := p.calendar.GetSelectedDate()
 	if err := p.app.TrackUp(habitName, selectedDate, value); err != nil {
-		p.commandLine.SetError(fmt.Sprintf("Error: %s", err))
-		return nil
+		return command.Error(fmt.Sprintf("Error: %s", err))
 	}
 
 	p.reloadCalendar()
-	p.commandLine.SetSuccess(fmt.Sprintf("Tracked up: %s", habitName))
-	return nil
+	return command.Success(fmt.Sprintf("Tracked up: %s", habitName))
 }
 
-func (p *Program) handleTrackDownCommand(args []string) tea.Cmd {
+func (p *Program) handleTrackDownCommand(args []string) command.Result {
+	// Validate arguments
 	if len(args) < 1 {
-		p.commandLine.SetError("Usage: track-down <habit>")
-		return nil
+		return command.Error("Usage: track-down <habit>")
 	}
 
 	habitName := args[0]
+
+	// Execute command
 	selectedDate := p.calendar.GetSelectedDate()
 	if err := p.app.TrackDown(habitName, selectedDate); err != nil {
-		p.commandLine.SetError(fmt.Sprintf("Error: %s", err))
-		return nil
+		return command.Error(fmt.Sprintf("Error: %s", err))
 	}
 
 	p.reloadCalendar()
-	p.commandLine.SetSuccess(fmt.Sprintf("Tracked down: %s", habitName))
-	return nil
+	return command.Success(fmt.Sprintf("Tracked down: %s", habitName))
 }
 
-func (p *Program) handleNextMonthCommand(args []string) tea.Cmd {
-	// Simulate 'L' key press for next month
+func (p *Program) handleNextMonthCommand(args []string) command.Result {
+	// No arguments needed - validation implicit
 	p.calendar.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'L'}})
-	p.commandLine.SetSuccess("Moved to next month")
-	return nil
+	return command.Success("Moved to next month")
 }
 
-func (p *Program) handlePrevMonthCommand(args []string) tea.Cmd {
-	// Simulate 'H' key press for previous month
+func (p *Program) handlePrevMonthCommand(args []string) command.Result {
+	// No arguments needed - validation implicit
 	p.calendar.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'H'}})
-	p.commandLine.SetSuccess("Moved to previous month")
-	return nil
+	return command.Success("Moved to previous month")
 }
 
-func (p *Program) handleQuitCommand(args []string) tea.Cmd {
-	return tea.Quit
+func (p *Program) handleQuitCommand(args []string) command.Result {
+	// No arguments needed - validation implicit
+	return command.Quit()
 }
 
 // reloadCalendar reloads the calendar with current app data
