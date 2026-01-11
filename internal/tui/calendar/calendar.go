@@ -3,6 +3,7 @@ package calendar
 import (
 	"time"
 
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -52,8 +53,10 @@ type Calendar struct {
 	viewMonth     time.Time // For monthly view - first day of visible month
 
 	// UI
-	width  int
-	height int
+	width    int
+	height   int
+	viewport viewport.Model
+	ready    bool
 
 	// View renderers
 	weeklyView  *WeeklyView
@@ -90,6 +93,9 @@ func NewCalendar(habits []Habit) *Calendar {
 	cal.weeklyView = NewWeeklyView(cal)
 	cal.monthlyView = NewMonthlyView(cal)
 
+	// Initialize viewport
+	cal.viewport = viewport.New(80, 20)
+
 	return cal
 }
 
@@ -100,24 +106,31 @@ func (c *Calendar) Init() tea.Cmd {
 
 // Update handles messages
 func (c *Calendar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "tab":
 			// Cycle through view modes
 			c.viewMode = (c.viewMode + 1) % 2 // Currently just weekly and monthly
+			c.updateViewportContent()
 
 		case "h", "left":
 			c.handleLeftNavigation()
+			c.updateViewportContent()
 
 		case "l", "right":
 			c.handleRightNavigation()
+			c.updateViewportContent()
 
 		case "H":
 			c.handleLeftJump()
+			c.updateViewportContent()
 
 		case "L":
 			c.handleRightJump()
+			c.updateViewportContent()
 
 		case "j", "down":
 			// In weekly view: move to next habit
@@ -125,6 +138,7 @@ func (c *Calendar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if c.viewMode == ViewModeWeekly {
 				if c.selectedHabit < len(c.habits)-1 {
 					c.selectedHabit++
+					c.scrollToSelectedHabit()
 				}
 			} else if c.viewMode == ViewModeMonthly {
 				c.selectedDate = c.selectedDate.AddDate(0, 0, 7)
@@ -133,6 +147,7 @@ func (c *Calendar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					c.viewMonth = time.Date(c.selectedDate.Year(), c.selectedDate.Month(), 1, 0, 0, 0, 0, time.UTC)
 				}
 			}
+			c.updateViewportContent()
 
 		case "k", "up":
 			// In weekly view: move to previous habit
@@ -140,6 +155,7 @@ func (c *Calendar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if c.viewMode == ViewModeWeekly {
 				if c.selectedHabit > 0 {
 					c.selectedHabit--
+					c.scrollToSelectedHabit()
 				}
 			} else if c.viewMode == ViewModeMonthly {
 				c.selectedDate = c.selectedDate.AddDate(0, 0, -7)
@@ -148,30 +164,97 @@ func (c *Calendar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					c.viewMonth = time.Date(c.selectedDate.Year(), c.selectedDate.Month(), 1, 0, 0, 0, 0, time.UTC)
 				}
 			}
+			c.updateViewportContent()
 
 		case "n":
 			// Next habit
 			if c.selectedHabit < len(c.habits)-1 {
 				c.selectedHabit++
+				c.scrollToSelectedHabit()
+				c.updateViewportContent()
 			}
 
 		case "p":
 			// Previous habit
 			if c.selectedHabit > 0 {
 				c.selectedHabit--
+				c.scrollToSelectedHabit()
+				c.updateViewportContent()
 			}
 
 		case "t":
 			// Jump to today
 			c.jumpToToday()
+			c.updateViewportContent()
+
+		default:
+			// Pass other keys to viewport for scrolling
+			c.viewport, cmd = c.viewport.Update(msg)
+			return c, cmd
 		}
 
 	case tea.WindowSizeMsg:
 		c.width = msg.Width
 		c.height = msg.Height
+		c.updateViewportSize()
 	}
 
 	return c, nil
+}
+
+// updateViewportSize updates viewport dimensions based on calendar size
+func (c *Calendar) updateViewportSize() {
+	// Reserve space for header (varies by view mode)
+	headerHeight := 6 // Default for weekly
+	if c.viewMode == ViewModeMonthly {
+		headerHeight = 3 // Monthly view has less header
+	}
+
+	viewportHeight := c.height - headerHeight
+	if viewportHeight < 1 {
+		viewportHeight = 1
+	}
+
+	c.viewport.Width = c.width
+	c.viewport.Height = viewportHeight
+	c.ready = true
+	c.updateViewportContent()
+}
+
+// updateViewportContent updates the viewport with current view content
+func (c *Calendar) updateViewportContent() {
+	if !c.ready {
+		return
+	}
+
+	var content string
+	if c.viewMode == ViewModeWeekly {
+		content = c.weeklyView.RenderContent()
+	} else {
+		content = c.monthlyView.RenderContent()
+	}
+
+	c.viewport.SetContent(content)
+}
+
+// scrollToSelectedHabit scrolls viewport to keep selected habit visible
+func (c *Calendar) scrollToSelectedHabit() {
+	if !c.ready || c.viewMode != ViewModeWeekly {
+		return
+	}
+
+	lineHeight := 1
+	selectedY := c.selectedHabit * lineHeight
+
+	// If selected row is below viewport, scroll down
+	if selectedY >= c.viewport.YOffset+c.viewport.Height {
+		c.viewport.YOffset = selectedY - c.viewport.Height + 1
+	}
+
+	// If selected row is above viewport, scroll up
+	if selectedY < c.viewport.YOffset {
+		c.viewport.YOffset = selectedY
+	}
 }
 
 // handleLeftNavigation handles left navigation based on current view mode
@@ -282,14 +365,18 @@ func (c *Calendar) adjustWeeklyViewToSelection() {
 
 // View renders the component based on current view mode
 func (c *Calendar) View() string {
-	switch c.viewMode {
-	case ViewModeWeekly:
-		return c.weeklyView.Render()
-	case ViewModeMonthly:
-		return c.monthlyView.Render()
-	default:
-		return "Unknown view mode"
+	if !c.ready {
+		return "Initializing..."
 	}
+
+	var header string
+	if c.viewMode == ViewModeWeekly {
+		header = c.weeklyView.RenderHeader()
+	} else {
+		header = c.monthlyView.RenderHeader()
+	}
+
+	return header + "\n" + c.viewport.View()
 }
 
 // SetEntry sets an entry for a habit on a specific date
@@ -356,6 +443,7 @@ func (c *Calendar) getDefaultValue(habit Habit, date time.Time) string {
 func (c *Calendar) Resize(width, height int) {
 	c.width = width
 	c.height = height
+	c.updateViewportSize()
 }
 
 // GetSelectedDate returns the currently selected date

@@ -68,8 +68,8 @@ func NewWeeklyView(calendar *Calendar) *WeeklyView {
 	}
 }
 
-// Render renders the weekly view
-func (w *WeeklyView) Render() string {
+// RenderHeader renders the fixed header (week info, day names, dates)
+func (w *WeeklyView) RenderHeader() string {
 	var sb strings.Builder
 
 	// Calculate week number
@@ -149,11 +149,23 @@ func (w *WeeklyView) Render() string {
 			todayIndicatorRow += w.cellStyle.Render("")
 		}
 	}
-	sb.WriteString(todayIndicatorRow + "\n\n")
+	sb.WriteString(todayIndicatorRow)
+
+	return sb.String()
+}
+
+// RenderContent renders the scrollable content (habit rows only)
+func (w *WeeklyView) RenderContent() string {
+	var sb strings.Builder
+
+	// Calculate how many days can fit
+	availableWidth := w.calendar.width - 20
+	daysToShow := availableWidth / 8
+	if daysToShow < 7 {
+		daysToShow = 7
+	}
 
 	// Habit rows
-	usedLines := 7 // header + spacing + day names + dates + today indicator + spacing
-
 	for idx, habit := range w.calendar.habits {
 		var habitLabel string
 		if idx == w.calendar.selectedHabit {
@@ -181,11 +193,10 @@ func (w *WeeklyView) Render() string {
 		sb.WriteString(row + "\n")
 	}
 
-	// Fill remaining vertical space
-	linesUsed := usedLines + len(w.calendar.habits)
-	for i := linesUsed; i < w.calendar.height-2; i++ {
-		sb.WriteString("\n")
-	}
-
 	return sb.String()
+}
+
+// Render renders the complete weekly view (for backward compatibility)
+func (w *WeeklyView) Render() string {
+	return w.RenderHeader() + "\n" + w.RenderContent()
 }

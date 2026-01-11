@@ -61,20 +61,22 @@ func NewMonthlyView(calendar *Calendar) *MonthlyView {
 	}
 }
 
-// Render renders the monthly view
-func (m *MonthlyView) Render() string {
+// RenderHeader renders the fixed header (month/year)
+func (m *MonthlyView) RenderHeader() string {
+	header := fmt.Sprintf("%s %d",
+		m.calendar.viewMonth.Format("January"),
+		m.calendar.viewMonth.Year(),
+	)
+	return m.headerStyle.Render(header)
+}
+
+// RenderContent renders the scrollable content (habit cards)
+func (m *MonthlyView) RenderContent() string {
 	if len(m.calendar.habits) == 0 {
 		return "No habits to display"
 	}
 
 	var sb strings.Builder
-
-	// Header with month/year
-	header := fmt.Sprintf("%s %d",
-		m.calendar.viewMonth.Format("January"),
-		m.calendar.viewMonth.Year(),
-	)
-	sb.WriteString(m.headerStyle.Render(header) + "\n\n")
 
 	// Calculate card width (7 days * 4 chars per cell + padding)
 	cardWidth := 7*4 + 4
@@ -120,15 +122,14 @@ func (m *MonthlyView) Render() string {
 		m.footerStyle.Render(dateStr),
 	)
 
-	sb.WriteString("\n" + footerLine + "\n")
-
-	// Fill remaining vertical space
-	lines := strings.Count(sb.String(), "\n")
-	for i := lines; i < m.calendar.height-2; i++ {
-		sb.WriteString("\n")
-	}
+	sb.WriteString(footerLine)
 
 	return sb.String()
+}
+
+// Render renders the complete monthly view (for backward compatibility)
+func (m *MonthlyView) Render() string {
+	return m.RenderHeader() + "\n\n" + m.RenderContent()
 }
 
 // renderHabitCard renders a single habit as a card with its monthly calendar
