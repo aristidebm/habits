@@ -133,38 +133,20 @@ func (c *Calendar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			c.updateViewportContent()
 
 		case "j", "down":
-			// In weekly view: move to next habit
-			// In monthly view: move down 7 days (one week down)
-			if c.viewMode == ViewModeWeekly {
-				if c.selectedHabit < len(c.habits)-1 {
-					c.selectedHabit++
-					c.scrollToSelectedHabit()
-				}
-			} else if c.viewMode == ViewModeMonthly {
-				c.selectedDate = c.selectedDate.AddDate(0, 0, 7)
-				// Adjust month view if we moved to next month
-				if c.selectedDate.Month() != c.viewMonth.Month() || c.selectedDate.Year() != c.viewMonth.Year() {
-					c.viewMonth = time.Date(c.selectedDate.Year(), c.selectedDate.Month(), 1, 0, 0, 0, 0, time.UTC)
-				}
+			// Move to next habit (both weekly and monthly)
+			if c.selectedHabit < len(c.habits)-1 {
+				c.selectedHabit++
+				c.scrollToSelectedHabit()
+				c.updateViewportContent()
 			}
-			c.updateViewportContent()
 
 		case "k", "up":
-			// In weekly view: move to previous habit
-			// In monthly view: move up 7 days (one week up)
-			if c.viewMode == ViewModeWeekly {
-				if c.selectedHabit > 0 {
-					c.selectedHabit--
-					c.scrollToSelectedHabit()
-				}
-			} else if c.viewMode == ViewModeMonthly {
-				c.selectedDate = c.selectedDate.AddDate(0, 0, -7)
-				// Adjust month view if we moved to previous month
-				if c.selectedDate.Month() != c.viewMonth.Month() || c.selectedDate.Year() != c.viewMonth.Year() {
-					c.viewMonth = time.Date(c.selectedDate.Year(), c.selectedDate.Month(), 1, 0, 0, 0, 0, time.UTC)
-				}
+			// Move to previous habit (both weekly and monthly)
+			if c.selectedHabit > 0 {
+				c.selectedHabit--
+				c.scrollToSelectedHabit()
+				c.updateViewportContent()
 			}
-			c.updateViewportContent()
 
 		case "n":
 			// Next habit
@@ -239,19 +221,39 @@ func (c *Calendar) updateViewportContent() {
 
 // scrollToSelectedHabit scrolls viewport to keep selected habit visible
 func (c *Calendar) scrollToSelectedHabit() {
-	if !c.ready || c.viewMode != ViewModeWeekly {
+	if !c.ready {
 		return
 	}
 
-	lineHeight := 1
-	selectedY := c.selectedHabit * lineHeight
+	var selectedY int
 
-	// If selected row is below viewport, scroll down
-	if selectedY >= c.viewport.YOffset+c.viewport.Height {
-		c.viewport.YOffset = selectedY - c.viewport.Height + 1
+	if c.viewMode == ViewModeWeekly {
+		// In weekly view, each habit is one line
+		lineHeight := 1
+		selectedY = c.selectedHabit * lineHeight
+	} else {
+		// In monthly view, calculate based on card layout
+		cardWidth := 7*4 + 4
+		cardsPerRow := c.width / cardWidth
+		if cardsPerRow < 1 {
+			cardsPerRow = 1
+		}
+
+		// Each card is ~9 lines tall (name + 2 lines + 6 weeks + padding)
+		cardHeight := 9
+		rowIndex := c.selectedHabit / cardsPerRow
+		selectedY = rowIndex * cardHeight
 	}
 
-	// If selected row is above viewport, scroll up
+	// If selected item is below viewport, scroll down
+	if selectedY >= c.viewport.YOffset+c.viewport.Height {
+		c.viewport.YOffset = selectedY - c.viewport.Height + 1
+		if c.viewport.YOffset < 0 {
+			c.viewport.YOffset = 0
+		}
+	}
+
+	// If selected item is above viewport, scroll up
 	if selectedY < c.viewport.YOffset {
 		c.viewport.YOffset = selectedY
 	}
