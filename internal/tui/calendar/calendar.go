@@ -225,12 +225,12 @@ func (c *Calendar) scrollToSelectedHabit() {
 		return
 	}
 
-	var selectedY int
+	var selectedY, itemHeight int
 
 	if c.viewMode == ViewModeWeekly {
 		// In weekly view, each habit is one line
-		lineHeight := 1
-		selectedY = c.selectedHabit * lineHeight
+		itemHeight = 1
+		selectedY = c.selectedHabit * itemHeight
 	} else {
 		// In monthly view, calculate based on card layout
 		cardWidth := 7*4 + 4
@@ -239,21 +239,25 @@ func (c *Calendar) scrollToSelectedHabit() {
 			cardsPerRow = 1
 		}
 
-		// Each card is ~9 lines tall (name + 2 lines + 6 weeks + padding)
-		cardHeight := 9
+		// Each card is ~10 lines tall (name + blank + 6 weeks + blank line between rows)
+		cardHeight := 10
 		rowIndex := c.selectedHabit / cardsPerRow
 		selectedY = rowIndex * cardHeight
+		itemHeight = cardHeight
 	}
 
-	// If selected item is below viewport, scroll down
-	if selectedY >= c.viewport.YOffset+c.viewport.Height {
-		c.viewport.YOffset = selectedY - c.viewport.Height + 1
+	// Calculate the bottom of the selected item
+	selectedBottom := selectedY + itemHeight
+
+	// If selected item's bottom is below viewport, scroll down to show full item
+	if selectedBottom > c.viewport.YOffset+c.viewport.Height {
+		c.viewport.YOffset = selectedBottom - c.viewport.Height
 		if c.viewport.YOffset < 0 {
 			c.viewport.YOffset = 0
 		}
 	}
 
-	// If selected item is above viewport, scroll up
+	// If selected item's top is above viewport, scroll up
 	if selectedY < c.viewport.YOffset {
 		c.viewport.YOffset = selectedY
 	}
