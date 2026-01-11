@@ -84,6 +84,8 @@ The application supports vim-style commands accessed by pressing `:`:
 
 This project is an experimental application built entirely using the Claude Opus model. The development process focused on architectural decisions and design patterns, with the AI model handling the complete implementation. The project demonstrates modern Go development practices and clean architecture principles.
 
+**Development Conversation:** The complete conversation that generated this application can be viewed at: https://claude.ai/share/ac346bb4-b57e-45af-b7cb-53dcdd35f54e
+
 ### Current Status
 
 The application is currently in development with a functional terminal interface and basic habit tracking capabilities. While the core UI components are implemented, several features are still being refined and data persistence is not yet complete.
