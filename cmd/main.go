@@ -1,7 +1,7 @@
 package main
 
 import (
-	"example.com/habits/intenal/tui"
+	"example.com/habits/internal/tui"
 )
 
 func main() {

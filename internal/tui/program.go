@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"example.com/habits/intenal/tui/calendar"
+	"example.com/habits/internal/tui/calendar"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -27,11 +27,11 @@ func initialModel() model {
 	// Add sample data for the past 2 weeks and current month
 	now := time.Now()
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-
+	
 	// Fill data from start of month to today
 	for d := monthStart; !d.After(now); d = d.AddDate(0, 0, 1) {
 		dayOfMonth := d.Day()
-
+		
 		// Morning Run - alternating pattern
 		if dayOfMonth%2 == 0 {
 			calendar.SetEntry("Morning Run", d, true, "")
@@ -88,7 +88,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	help := "\nKeys: [h/l] nav | [H/L] jump | [j/k] habit | [TAB] switch view | [t] today | [q] quit\n"
+	help := "\nKeys: [h/l] prev/next day | [H/L] week/month jump | [j/k] habit (weekly) | [n/p] habit | [TAB] switch view | [t] today | [q] quit\n"
 	return m.calendar.View() + help
 }
 
