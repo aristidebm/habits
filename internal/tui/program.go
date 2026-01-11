@@ -27,11 +27,11 @@ func initialModel() model {
 	// Add sample data for the past 2 weeks and current month
 	now := time.Now()
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-	
+
 	// Fill data from start of month to today
 	for d := monthStart; !d.After(now); d = d.AddDate(0, 0, 1) {
 		dayOfMonth := d.Day()
-		
+
 		// Morning Run - alternating pattern
 		if dayOfMonth%2 == 0 {
 			calendar.SetEntry("Morning Run", d, true, "")

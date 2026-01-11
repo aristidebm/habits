@@ -6,7 +6,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-
 // ViewMode represents different calendar view modes
 type ViewMode int
 
@@ -41,20 +40,20 @@ type HabitEntry struct {
 // Calendar is the main calendar component that manages habits and their entries
 type Calendar struct {
 	// Data
-	habits        []Habit
-	entries       map[string]map[time.Time]HabitEntry // habitName -> date -> entry
-	
+	habits  []Habit
+	entries map[string]map[time.Time]HabitEntry // habitName -> date -> entry
+
 	// State
 	viewMode      ViewMode
 	selectedDate  time.Time
-	selectedHabit int // index of selected habit
+	selectedHabit int       // index of selected habit
 	viewStartDate time.Time // For weekly view - first day of visible week
 	viewMonth     time.Time // For monthly view - first day of visible month
-	
+
 	// UI
 	width  int
 	height int
-	
+
 	// View renderers
 	weeklyView  *WeeklyView
 	monthlyView *MonthlyView
@@ -63,17 +62,17 @@ type Calendar struct {
 // NewCalendar creates a new calendar component
 func NewCalendar(habits []Habit) *Calendar {
 	now := time.Now()
-	
+
 	// Calculate week start (Monday)
 	weekday := int(now.Weekday())
 	if weekday == 0 {
 		weekday = 7 // Sunday becomes 7
 	}
 	weekStart := now.AddDate(0, 0, -(weekday - 1))
-	
+
 	// Month start
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-	
+
 	cal := &Calendar{
 		habits:        habits,
 		entries:       make(map[string]map[time.Time]HabitEntry),
@@ -85,11 +84,11 @@ func NewCalendar(habits []Habit) *Calendar {
 		width:         80,
 		height:        24,
 	}
-	
+
 	// Initialize view renderers
 	cal.weeklyView = NewWeeklyView(cal)
 	cal.monthlyView = NewMonthlyView(cal)
-	
+
 	return cal
 }
 
@@ -106,59 +105,71 @@ func (c *Calendar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "tab":
 			// Cycle through view modes
 			c.viewMode = (c.viewMode + 1) % 2 // Currently just weekly and monthly
-			
+
 		case "h", "left":
 			c.handleLeftNavigation()
-			
+
 		case "l", "right":
 			c.handleRightNavigation()
-			
+
 		case "H":
 			c.handleLeftJump()
-			
+
 		case "L":
 			c.handleRightJump()
-			
+
 		case "j", "down":
 			// In weekly view: move to next habit
-			// In monthly view: do nothing (reserved for future use)
+			// In monthly view: move down 7 days (one week down)
 			if c.viewMode == ViewModeWeekly {
 				if c.selectedHabit < len(c.habits)-1 {
 					c.selectedHabit++
 				}
+			} else if c.viewMode == ViewModeMonthly {
+				c.selectedDate = c.selectedDate.AddDate(0, 0, 7)
+				// Adjust month view if we moved to next month
+				if c.selectedDate.Month() != c.viewMonth.Month() || c.selectedDate.Year() != c.viewMonth.Year() {
+					c.viewMonth = time.Date(c.selectedDate.Year(), c.selectedDate.Month(), 1, 0, 0, 0, 0, time.UTC)
+				}
 			}
-			
+
 		case "k", "up":
 			// In weekly view: move to previous habit
-			// In monthly view: do nothing (reserved for future use)
+			// In monthly view: move up 7 days (one week up)
 			if c.viewMode == ViewModeWeekly {
 				if c.selectedHabit > 0 {
 					c.selectedHabit--
 				}
+			} else if c.viewMode == ViewModeMonthly {
+				c.selectedDate = c.selectedDate.AddDate(0, 0, -7)
+				// Adjust month view if we moved to previous month
+				if c.selectedDate.Month() != c.viewMonth.Month() || c.selectedDate.Year() != c.viewMonth.Year() {
+					c.viewMonth = time.Date(c.selectedDate.Year(), c.selectedDate.Month(), 1, 0, 0, 0, 0, time.UTC)
+				}
 			}
-			
+
 		case "n":
 			// Next habit
 			if c.selectedHabit < len(c.habits)-1 {
 				c.selectedHabit++
 			}
-			
+
 		case "p":
 			// Previous habit
 			if c.selectedHabit > 0 {
 				c.selectedHabit--
 			}
-			
+
 		case "t":
 			// Jump to today
 			c.jumpToToday()
 		}
-		
+
 	case tea.WindowSizeMsg:
 		c.width = msg.Width
 		c.height = msg.Height
 	}
-	
+
 	return c, nil
 }
 
@@ -169,7 +180,7 @@ func (c *Calendar) handleLeftNavigation() {
 		// Move to previous day
 		c.selectedDate = c.selectedDate.AddDate(0, 0, -1)
 		c.adjustWeeklyViewToSelection()
-		
+
 	case ViewModeMonthly:
 		// Move to previous day
 		c.selectedDate = c.selectedDate.AddDate(0, 0, -1)
@@ -187,7 +198,7 @@ func (c *Calendar) handleRightNavigation() {
 		// Move to next day
 		c.selectedDate = c.selectedDate.AddDate(0, 0, 1)
 		c.adjustWeeklyViewToSelection()
-		
+
 	case ViewModeMonthly:
 		// Move to next day
 		c.selectedDate = c.selectedDate.AddDate(0, 0, 1)
@@ -205,7 +216,7 @@ func (c *Calendar) handleLeftJump() {
 		// Move to previous week
 		c.selectedDate = c.selectedDate.AddDate(0, 0, -7)
 		c.viewStartDate = c.viewStartDate.AddDate(0, 0, -7)
-		
+
 	case ViewModeMonthly:
 		// Move to previous month
 		c.viewMonth = c.viewMonth.AddDate(0, -1, 0)
@@ -221,7 +232,7 @@ func (c *Calendar) handleRightJump() {
 		// Move to next week
 		c.selectedDate = c.selectedDate.AddDate(0, 0, 7)
 		c.viewStartDate = c.viewStartDate.AddDate(0, 0, 7)
-		
+
 	case ViewModeMonthly:
 		// Move to next month
 		c.viewMonth = c.viewMonth.AddDate(0, 1, 0)
@@ -234,14 +245,14 @@ func (c *Calendar) handleRightJump() {
 func (c *Calendar) jumpToToday() {
 	now := time.Now()
 	c.selectedDate = now
-	
+
 	// Adjust weekly view
 	weekday := int(now.Weekday())
 	if weekday == 0 {
 		weekday = 7
 	}
 	c.viewStartDate = now.AddDate(0, 0, -(weekday - 1))
-	
+
 	// Adjust monthly view
 	c.viewMonth = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 }
@@ -256,7 +267,7 @@ func (c *Calendar) adjustWeeklyViewToSelection() {
 		}
 		c.viewStartDate = c.selectedDate.AddDate(0, 0, -(weekday - 1))
 	}
-	
+
 	// If selected date is after view end, shift view forward
 	viewEndDate := c.viewStartDate.AddDate(0, 0, 6)
 	if c.selectedDate.After(viewEndDate) {
@@ -285,7 +296,7 @@ func (c *Calendar) SetEntry(habitName string, date time.Time, completed bool, va
 	if c.entries[habitName] == nil {
 		c.entries[habitName] = make(map[time.Time]HabitEntry)
 	}
-	
+
 	// Normalize date to remove time component
 	dateKey := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
 	c.entries[habitName][dateKey] = HabitEntry{
@@ -301,7 +312,7 @@ func (c *Calendar) GetEntry(habitName string, date time.Time) (HabitEntry, bool)
 	if !exists {
 		return HabitEntry{}, false
 	}
-	
+
 	// Normalize date
 	dateKey := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
 	entry, exists := habitEntries[dateKey]
@@ -314,7 +325,7 @@ func (c *Calendar) GetCellValue(habit Habit, date time.Time) string {
 	if !exists {
 		return c.getDefaultValue(habit, date)
 	}
-	
+
 	switch habit.Type {
 	case HabitTypeBit:
 		if entry.Completed {
@@ -327,7 +338,7 @@ func (c *Calendar) GetCellValue(habit Habit, date time.Time) string {
 		}
 		return entry.Value
 	}
-	
+
 	return "?"
 }
 
