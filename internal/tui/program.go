@@ -2,100 +2,316 @@ package tui
 
 import (
 	"fmt"
-	"os"
+	"strings"
 	"time"
 
-	"example.com/habits/internal/tui/calendar"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"example.com/habits/internal/app"
+	"example.com/habits/internal/tui/calendar"
+	"example.com/habits/internal/tui/command"
 )
 
-type model struct {
-	calendar *calendar.Calendar
+// Program is the main TUI program
+type Program struct {
+	app         *app.App
+	calendar    *calendar.Calendar
+	commandLine *command.CommandLine
+	width       int
+	height      int
 }
 
-func initialModel() model {
-	// Create some sample habits
-	habits := []calendar.Habit{
-		{Name: "Morning Run", Type: calendar.HabitTypeBit},
-		{Name: "Read Pages", Type: calendar.HabitTypeCount},
-		{Name: "Water (L)", Type: calendar.HabitTypeFloat},
-		{Name: "Meditation", Type: calendar.HabitTypeBit},
-	}
-
-	calendar := calendar.NewCalendar(habits)
-
-	// Add sample data for the past 2 weeks and current month
-	now := time.Now()
-	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-
-	// Fill data from start of month to today
-	for d := monthStart; !d.After(now); d = d.AddDate(0, 0, 1) {
-		dayOfMonth := d.Day()
-
-		// Morning Run - alternating pattern
-		if dayOfMonth%2 == 0 {
-			calendar.SetEntry("Morning Run", d, true, "")
-		} else {
-			calendar.SetEntry("Morning Run", d, false, "-")
-		}
-
-		// Read Pages - varying numbers
-		if dayOfMonth%3 != 0 {
-			value := fmt.Sprintf("%d", 10+(dayOfMonth%20))
-			calendar.SetEntry("Read Pages", d, false, value)
-		} else {
-			calendar.SetEntry("Read Pages", d, false, "-")
-		}
-
-		// Water - float values
-		if dayOfMonth%4 != 1 {
-			value := fmt.Sprintf("%.1f", 2.0+(float64(dayOfMonth%10)*0.1))
-			calendar.SetEntry("Water (L)", d, false, value)
-		} else {
-			calendar.SetEntry("Water (L)", d, false, "-")
-		}
-
-		// Meditation - mostly consistent
-		if dayOfMonth%5 != 0 {
-			calendar.SetEntry("Meditation", d, true, "")
-		} else {
-			calendar.SetEntry("Meditation", d, false, "-")
+// NewProgram creates a new TUI program
+func NewProgram(application *app.App) *Program {
+	// Convert app habits to calendar habits
+	calendarHabits := make([]calendar.Habit, len(application.GetHabits()))
+	for i, h := range application.GetHabits() {
+		calendarHabits[i] = calendar.Habit{
+			ID:   h.ID,
+			Name: h.Name,
+			Type: calendar.HabitType(h.Type),
 		}
 	}
 
-	return model{
-		calendar: calendar,
+	cal := calendar.NewCalendar(calendarHabits)
+
+	// Sync entries from app to calendar
+	syncEntriesToCalendar(application, cal)
+
+	cmdLine := command.NewCommandLine()
+
+	p := &Program{
+		app:         application,
+		calendar:    cal,
+		commandLine: cmdLine,
+		width:       80,
+		height:      24,
 	}
+
+	// Register commands
+	p.registerCommands()
+
+	return p
 }
 
-func (m model) Init() tea.Cmd {
-	return m.calendar.Init()
+// registerCommands registers all available commands
+func (p *Program) registerCommands() {
+	p.commandLine.RegisterCommand(command.Command{
+		Name:        "add",
+		Description: "Add a new habit",
+		Usage:       "add <name> <type>  (types: bit, count, float)",
+		Handler:     p.handleAddCommand,
+	})
+
+	p.commandLine.RegisterCommand(command.Command{
+		Name:        "delete",
+		Description: "Delete a habit",
+		Usage:       "delete <name>",
+		Handler:     p.handleDeleteCommand,
+	})
+
+	p.commandLine.RegisterCommand(command.Command{
+		Name:        "track-up",
+		Description: "Mark habit as done or increment value",
+		Usage:       "track-up <habit> [value]",
+		Handler:     p.handleTrackUpCommand,
+	})
+
+	p.commandLine.RegisterCommand(command.Command{
+		Name:        "track-down",
+		Description: "Mark habit as not done or decrement value",
+		Usage:       "track-down <habit>",
+		Handler:     p.handleTrackDownCommand,
+	})
+
+	p.commandLine.RegisterCommand(command.Command{
+		Name:        "next-month",
+		Description: "Go to next month",
+		Usage:       "next-month",
+		Handler:     p.handleNextMonthCommand,
+	})
+
+	p.commandLine.RegisterCommand(command.Command{
+		Name:        "prev-month",
+		Description: "Go to previous month",
+		Usage:       "prev-month",
+		Handler:     p.handlePrevMonthCommand,
+	})
+
+	p.commandLine.RegisterCommand(command.Command{
+		Name:        "quit",
+		Description: "Quit the application",
+		Usage:       "quit",
+		Handler:     p.handleQuitCommand,
+	})
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+// Init initializes the program
+func (p *Program) Init() tea.Cmd {
+	return nil
+}
+
+// Update handles messages
+func (p *Program) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// If command line is visible, let it handle the input
+		if p.commandLine.IsVisible() {
+			return p, p.commandLine.Update(msg)
+		}
+
+		// Handle global keys
 		switch msg.String() {
-		case "q", "ctrl+c":
-			return m, tea.Quit
+		case ":":
+			return p, p.commandLine.Show()
+		case "q":
+			if !p.commandLine.IsVisible() {
+				return p, tea.Quit
+			}
+		}
+
+		// Let calendar handle the input
+		_, cmd := p.calendar.Update(msg)
+		return p, cmd
+
+	case tea.WindowSizeMsg:
+		p.width = msg.Width
+		p.height = msg.Height
+		p.calendar.Resize(msg.Width, msg.Height-2) // -2 for command line
+		p.commandLine.SetWidth(msg.Width)
+		return p, nil
+	}
+
+	// If command line is visible, update it
+	if p.commandLine.IsVisible() {
+		return p, p.commandLine.Update(msg)
+	}
+
+	return p, nil
+}
+
+// View renders the program
+func (p *Program) View() string {
+	var view strings.Builder
+
+	// Render calendar
+	view.WriteString(p.calendar.View())
+	view.WriteString("\n")
+
+	// Render command line or status
+	view.WriteString(p.commandLine.View())
+
+	// Help text
+	if !p.commandLine.IsVisible() && p.commandLine.View() == "" {
+		helpText := "[:]cmd [q]quit"
+		view.WriteString(helpText)
+	}
+
+	return view.String()
+}
+
+// Command handlers
+
+func (p *Program) handleAddCommand(args []string) tea.Cmd {
+	if len(args) < 2 {
+		p.commandLine.SetError("Usage: add <name> <type>")
+		return nil
+	}
+
+	name := args[0]
+	typeStr := strings.ToLower(args[1])
+
+	var habitType app.HabitType
+	switch typeStr {
+	case "bit":
+		habitType = app.HabitTypeBit
+	case "count":
+		habitType = app.HabitTypeCount
+	case "float":
+		habitType = app.HabitTypeFloat
+	default:
+		p.commandLine.SetError(fmt.Sprintf("Invalid habit type: %s (use: bit, count, float)", typeStr))
+		return nil
+	}
+
+	if err := p.app.AddHabit(name, habitType); err != nil {
+		p.commandLine.SetError(fmt.Sprintf("Error: %s", err))
+		return nil
+	}
+
+	// Reload calendar with new habits
+	p.reloadCalendar()
+	p.commandLine.SetSuccess(fmt.Sprintf("Added habit: %s", name))
+	return nil
+}
+
+func (p *Program) handleDeleteCommand(args []string) tea.Cmd {
+	if len(args) < 1 {
+		p.commandLine.SetError("Usage: delete <name>")
+		return nil
+	}
+
+	name := args[0]
+	if err := p.app.DeleteHabit(name); err != nil {
+		p.commandLine.SetError(fmt.Sprintf("Error: %s", err))
+		return nil
+	}
+
+	p.reloadCalendar()
+	p.commandLine.SetSuccess(fmt.Sprintf("Deleted habit: %s", name))
+	return nil
+}
+
+func (p *Program) handleTrackUpCommand(args []string) tea.Cmd {
+	if len(args) < 1 {
+		p.commandLine.SetError("Usage: track-up <habit> [value]")
+		return nil
+	}
+
+	habitName := args[0]
+	value := ""
+	if len(args) > 1 {
+		value = args[1]
+	}
+
+	selectedDate := p.calendar.GetSelectedDate()
+	if err := p.app.TrackUp(habitName, selectedDate, value); err != nil {
+		p.commandLine.SetError(fmt.Sprintf("Error: %s", err))
+		return nil
+	}
+
+	p.reloadCalendar()
+	p.commandLine.SetSuccess(fmt.Sprintf("Tracked up: %s", habitName))
+	return nil
+}
+
+func (p *Program) handleTrackDownCommand(args []string) tea.Cmd {
+	if len(args) < 1 {
+		p.commandLine.SetError("Usage: track-down <habit>")
+		return nil
+	}
+
+	habitName := args[0]
+	selectedDate := p.calendar.GetSelectedDate()
+	if err := p.app.TrackDown(habitName, selectedDate); err != nil {
+		p.commandLine.SetError(fmt.Sprintf("Error: %s", err))
+		return nil
+	}
+
+	p.reloadCalendar()
+	p.commandLine.SetSuccess(fmt.Sprintf("Tracked down: %s", habitName))
+	return nil
+}
+
+func (p *Program) handleNextMonthCommand(args []string) tea.Cmd {
+	// Simulate 'L' key press for next month
+	p.calendar.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'L'}})
+	p.commandLine.SetSuccess("Moved to next month")
+	return nil
+}
+
+func (p *Program) handlePrevMonthCommand(args []string) tea.Cmd {
+	// Simulate 'H' key press for previous month
+	p.calendar.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'H'}})
+	p.commandLine.SetSuccess("Moved to previous month")
+	return nil
+}
+
+func (p *Program) handleQuitCommand(args []string) tea.Cmd {
+	return tea.Quit
+}
+
+// reloadCalendar reloads the calendar with current app data
+func (p *Program) reloadCalendar() {
+	// Convert app habits to calendar habits
+	calendarHabits := make([]calendar.Habit, len(p.app.GetHabits()))
+	for i, h := range p.app.GetHabits() {
+		calendarHabits[i] = calendar.Habit{
+			ID:   h.ID,
+			Name: h.Name,
+			Type: calendar.HabitType(h.Type),
 		}
 	}
 
-	// Update calendar
-	updated, cmd := m.calendar.Update(msg)
-	m.calendar = updated.(*calendar.Calendar)
-	return m, cmd
+	p.calendar = calendar.NewCalendar(calendarHabits)
+	p.calendar.Resize(p.width, p.height-2)
+
+	// Sync entries
+	syncEntriesToCalendar(p.app, p.calendar)
 }
 
-func (m model) View() string {
-	help := "\nKeys: [h/l] prev/next day | [H/L] week/month jump | [j/k] habit (weekly) | [n/p] habit | [TAB] switch view | [t] today | [q] quit\n"
-	return m.calendar.View() + help
-}
+// syncEntriesToCalendar syncs entries from app to calendar
+func syncEntriesToCalendar(application *app.App, cal *calendar.Calendar) {
+	for _, habit := range application.GetHabits() {
+		// Get entries for the past year
+		now := time.Now()
+		start := now.AddDate(-1, 0, 0)
 
-func Execute() {
-	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
-	if _, err := p.Run(); err != nil {
-		fmt.Printf("Error running program: %v", err)
-		os.Exit(1)
+		for d := start; !d.After(now); d = d.AddDate(0, 0, 1) {
+			entry, exists := application.GetEntry(habit.ID, d)
+			if exists {
+				cal.SetEntry(habit.Name, d, entry.Completed, entry.Value)
+			}
+		}
 	}
 }

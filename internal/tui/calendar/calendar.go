@@ -26,6 +26,7 @@ const (
 
 // Habit represents a single habit
 type Habit struct {
+	ID   string
 	Name string
 	Type HabitType
 }
@@ -355,4 +356,17 @@ func (c *Calendar) getDefaultValue(habit Habit, date time.Time) string {
 func (c *Calendar) Resize(width, height int) {
 	c.width = width
 	c.height = height
+}
+
+// GetSelectedDate returns the currently selected date
+func (c *Calendar) GetSelectedDate() time.Time {
+	return c.selectedDate
+}
+
+// GetSelectedHabit returns the currently selected habit
+func (c *Calendar) GetSelectedHabit() *Habit {
+	if c.selectedHabit >= 0 && c.selectedHabit < len(c.habits) {
+		return &c.habits[c.selectedHabit]
+	}
+	return nil
 }
