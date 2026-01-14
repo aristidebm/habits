@@ -76,6 +76,12 @@ func (w *WeeklyView) RenderHeader() string {
 	_, week := w.calendar.viewStartDate.ISOWeek()
 	endDate := w.calendar.viewStartDate.AddDate(0, 0, 6)
 
+	// Calculate day of year and total days in year
+	dayOfYear := w.calendar.selectedDate.YearDay()
+	year := w.calendar.selectedDate.Year()
+	endOfYear := time.Date(year, 12, 31, 0, 0, 0, 0, time.UTC)
+	totalDays := endOfYear.YearDay()
+
 	// Header with week range and week number
 	header := fmt.Sprintf("Week: %s - %s, %d",
 		w.calendar.viewStartDate.Format("Jan 02"),
@@ -83,11 +89,14 @@ func (w *WeeklyView) RenderHeader() string {
 		w.calendar.viewStartDate.Year(),
 	)
 	weekIndicator := fmt.Sprintf("◀ [%d/52] ▶", week)
+	dayIndicator := fmt.Sprintf("◀ [%d/%d] ▶", dayOfYear, totalDays)
 
-	// Calculate spacing to fill the width
+	// Calculate spacing to fill the width (now with middle element)
 	headerLen := len(header)
 	indicatorLen := len(weekIndicator)
-	spacingLen := w.calendar.width - headerLen - indicatorLen - 4
+	dayIndicatorLen := len(dayIndicator)
+	availableSpace := w.calendar.width - headerLen - indicatorLen - dayIndicatorLen - 6
+	spacingLen := availableSpace / 2
 	if spacingLen < 0 {
 		spacingLen = 0
 	}
@@ -95,6 +104,8 @@ func (w *WeeklyView) RenderHeader() string {
 	headerLine := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		w.headerStyle.Render(header),
+		strings.Repeat(" ", spacingLen),
+		w.headerStyle.Render(dayIndicator),
 		strings.Repeat(" ", spacingLen),
 		w.headerStyle.Render(weekIndicator),
 	)
