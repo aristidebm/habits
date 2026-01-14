@@ -1,181 +1,178 @@
 package app
 
 import (
+	"database/sql"
 	"fmt"
 	"time"
+
+	_ "github.com/pressly/goose/v3"
 )
 
-// HabitType represents the type of habit
-type HabitType int
-
-const (
-	HabitTypeBit HabitType = iota
-	HabitTypeCount
-	HabitTypeFloat
-)
-
-// Habit represents a single habit
-type Habit struct {
-	ID   string
-	Name string
-	Type HabitType
-}
-
-// HabitEntry represents a habit entry for a specific date
-type HabitEntry struct {
-	HabitID   string
-	Date      time.Time
-	Completed bool   // for bit type
-	Value     string // for count/float type
-}
-
-// App is the core application that manages habits and entries
-// This can be used by TUI, CLI, or Web interfaces
 type App struct {
-	// TODO: Add database connection here
-	habits  []Habit
-	entries map[string]map[time.Time]HabitEntry // habitID -> date -> entry
+	db *sql.DB
 }
 
-// NewApp creates a new application instance
-func NewApp() *App {
-	// TODO: Initialize database connection
-	return &App{
-		habits:  make([]Habit, 0),
-		entries: make(map[string]map[time.Time]HabitEntry),
+func NewApp(dbPath string) (*App, error) {
+	db, err := OpenDB(dbPath)
+	if err != nil {
+		return nil, err
 	}
+
+	return &App{db: db}, nil
 }
 
-// AddHabit adds a new habit
-func (a *App) AddHabit(name string, habitType HabitType) error {
-	// TODO: Store in database
-	habit := Habit{
-		ID:   fmt.Sprintf("habit_%d", len(a.habits)+1),
-		Name: name,
-		Type: habitType,
+func (a *App) Close() error {
+	if a.db != nil {
+		return a.db.Close()
 	}
-	a.habits = append(a.habits, habit)
 	return nil
 }
 
-// DeleteHabit deletes a habit by name
-func (a *App) DeleteHabit(name string) error {
-	// TODO: Delete from database
-	for i, h := range a.habits {
-		if h.Name == name {
-			a.habits = append(a.habits[:i], a.habits[i+1:]...)
-			delete(a.entries, h.ID)
-			return nil
-		}
-	}
-	return fmt.Errorf("habit '%s' not found", name)
+func (a *App) Migrate() error {
+	return Migrate(a.db, "migrations")
 }
 
-// TrackUp increments or marks a habit as done
-func (a *App) TrackUp(habitName string, date time.Time, value string) error {
-	// TODO: Store in database
-	habit := a.findHabitByName(habitName)
-	if habit == nil {
-		return fmt.Errorf("habit '%s' not found", habitName)
+func (a *App) CreateHabit(name string, habitType HabitType, goal float64) (*Habit, error) {
+	result, err := a.db.Exec(
+		"INSERT INTO habits (name, kind, goal) VALUES (?, ?, ?)",
+		name, habitType.String(), goal,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create habit: %w", err)
 	}
 
-	if a.entries[habit.ID] == nil {
-		a.entries[habit.ID] = make(map[time.Time]HabitEntry)
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get habit id: %w", err)
 	}
 
-	dateKey := normalizeDate(date)
+	return a.GetHabit(int(id))
+}
 
-	switch habit.Type {
-	case HabitTypeBit:
-		a.entries[habit.ID][dateKey] = HabitEntry{
-			HabitID:   habit.ID,
-			Date:      dateKey,
-			Completed: true,
-			Value:     "",
-		}
-	case HabitTypeCount:
-		// Parse current value and increment
-		entry, exists := a.entries[habit.ID][dateKey]
-		if !exists {
-			entry = HabitEntry{
-				HabitID: habit.ID,
-				Date:    dateKey,
-				Value:   "1",
-			}
-		} else {
-			// TODO: Parse and increment
-			entry.Value = value
-		}
-		a.entries[habit.ID][dateKey] = entry
-	case HabitTypeFloat:
-		a.entries[habit.ID][dateKey] = HabitEntry{
-			HabitID: habit.ID,
-			Date:    dateKey,
-			Value:   value,
-		}
+func (a *App) GetHabit(id int) (*Habit, error) {
+	h := &Habit{}
+	var kindStr string
+	err := a.db.QueryRow(
+		"SELECT id, name, kind, goal, created_at FROM habits WHERE id = ?",
+		id,
+	).Scan(&h.ID, &h.Name, &kindStr, &h.Goal, &h.CreatedAt)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get habit: %w", err)
 	}
 
+	ht, err := HabitTypeFromString(kindStr)
+	if err != nil {
+		return nil, err
+	}
+	h.Type = ht
+
+	return h, nil
+}
+
+func (a *App) ListHabits() ([]Habit, error) {
+	rows, err := a.db.Query("SELECT id, name, kind, goal, created_at FROM habits ORDER BY id")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list habits: %w", err)
+	}
+	defer rows.Close()
+
+	var habits []Habit
+	for rows.Next() {
+		var h Habit
+		var kindStr string
+		if err := rows.Scan(&h.ID, &h.Name, &kindStr, &h.Goal, &h.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan habit: %w", err)
+		}
+		h.Type, _ = HabitTypeFromString(kindStr)
+		habits = append(habits, h)
+	}
+
+	return habits, nil
+}
+
+func (a *App) DeleteHabit(id int) error {
+	_, err := a.db.Exec("DELETE FROM habits WHERE id = ?", id)
+	if err != nil {
+		return fmt.Errorf("failed to delete habit: %w", err)
+	}
 	return nil
 }
 
-// TrackDown decrements or marks a habit as not done
-func (a *App) TrackDown(habitName string, date time.Time) error {
-	// TODO: Store in database
-	habit := a.findHabitByName(habitName)
-	if habit == nil {
-		return fmt.Errorf("habit '%s' not found", habitName)
+func (a *App) UpsertEntry(habitID int, date time.Time, value float64) error {
+	dateStr := date.Format("2006-01-02")
+	_, err := a.db.Exec(`
+		INSERT INTO habit_entries (habit_id, value, date)
+		VALUES (?, ?, ?)
+		ON CONFLICT(habit_id, date) DO UPDATE SET value = excluded.value
+	`, habitID, value, dateStr)
+
+	if err != nil {
+		return fmt.Errorf("failed to upsert entry: %w", err)
 	}
-
-	if a.entries[habit.ID] == nil {
-		return nil
-	}
-
-	dateKey := normalizeDate(date)
-
-	switch habit.Type {
-	case HabitTypeBit:
-		a.entries[habit.ID][dateKey] = HabitEntry{
-			HabitID:   habit.ID,
-			Date:      dateKey,
-			Completed: false,
-			Value:     "",
-		}
-	case HabitTypeCount:
-		// TODO: Decrement value
-		delete(a.entries[habit.ID], dateKey)
-	case HabitTypeFloat:
-		delete(a.entries[habit.ID], dateKey)
-	}
-
 	return nil
 }
 
-// GetHabits returns all habits
+func (a *App) GetEntry(habitID int, date time.Time) (*HabitEntry, error) {
+	dateStr := date.Format("2006-01-02")
+	e := &HabitEntry{}
+	err := a.db.QueryRow(`
+		SELECT id, habit_id, value, date, created_at
+		FROM habit_entries
+		WHERE habit_id = ? AND date = ?
+	`, habitID, dateStr).Scan(&e.ID, &e.HabitID, &e.Value, &e.Date, &e.CreatedAt)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get entry: %w", err)
+	}
+
+	return e, nil
+}
+
+func (a *App) ListEntries(habitID int, startDate, endDate time.Time) ([]HabitEntry, error) {
+	startStr := startDate.Format("2006-01-02")
+	endStr := endDate.Format("2006-01-02")
+
+	rows, err := a.db.Query(`
+		SELECT id, habit_id, value, date, created_at
+		FROM habit_entries
+		WHERE habit_id = ? AND date >= ? AND date <= ?
+		ORDER BY date
+	`, habitID, startStr, endStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list entries: %w", err)
+	}
+	defer rows.Close()
+
+	var entries []HabitEntry
+	for rows.Next() {
+		var e HabitEntry
+		var dateStr string
+		if err := rows.Scan(&e.ID, &e.HabitID, &e.Value, &dateStr, &e.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan entry: %w", err)
+		}
+		e.Date, _ = time.Parse("2006-01-02", dateStr)
+		entries = append(entries, e)
+	}
+
+	return entries, nil
+}
+
 func (a *App) GetHabits() []Habit {
-	return a.habits
+	habits, err := a.ListHabits()
+	if err != nil {
+		return []Habit{}
+	}
+	return habits
 }
 
-// GetEntry retrieves an entry for a habit on a specific date
-func (a *App) GetEntry(habitID string, date time.Time) (HabitEntry, bool) {
-	dateKey := normalizeDate(date)
-	if a.entries[habitID] == nil {
+func (a *App) GetEntryByID(habitID int, date time.Time) (HabitEntry, bool) {
+	entry, err := a.GetEntry(habitID, date)
+	if err != nil || entry == nil {
 		return HabitEntry{}, false
 	}
-	entry, exists := a.entries[habitID][dateKey]
-	return entry, exists
-}
-
-// findHabitByName finds a habit by name
-func (a *App) findHabitByName(name string) *Habit {
-	for i := range a.habits {
-		if a.habits[i].Name == name {
-			return &a.habits[i]
-		}
-	}
-	return nil
-}
-
-// normalizeDate removes time component from date
-func normalizeDate(date time.Time) time.Time {
-	return time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
+	return *entry, true
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -11,33 +12,19 @@ import (
 )
 
 func main() {
-	// Initialize the core application
-	application := app.NewApp()
+	dbPath := "./habits.db"
 
-	// Add some sample habits for testing
-	application.AddHabit("Morning Run", app.HabitTypeBit)
-	application.AddHabit("Read Pages", app.HabitTypeCount)
-	application.AddHabit("Water (L)", app.HabitTypeFloat)
-	application.AddHabit("One", app.HabitTypeBit)
-	application.AddHabit("Two", app.HabitTypeBit)
-	application.AddHabit("Three", app.HabitTypeBit)
-	application.AddHabit("Four", app.HabitTypeBit)
-	application.AddHabit("Five", app.HabitTypeBit)
-	application.AddHabit("Six", app.HabitTypeBit)
-	application.AddHabit("Seven", app.HabitTypeBit)
-	application.AddHabit("Eight", app.HabitTypeBit)
-	application.AddHabit("Nine", app.HabitTypeBit)
-	application.AddHabit("Ten", app.HabitTypeBit)
-	application.AddHabit("Eleven", app.HabitTypeBit)
-	application.AddHabit("Twelve", app.HabitTypeBit)
-	application.AddHabit("Thirteen", app.HabitTypeBit)
-	application.AddHabit("Fourteen", app.HabitTypeBit)
-	application.AddHabit("Fifteen", app.HabitTypeBit)
-	application.AddHabit("Sixten", app.HabitTypeBit)
-	application.AddHabit("SevenTeen", app.HabitTypeBit)
-	application.AddHabit("Eighteen", app.HabitTypeBit)
-	application.AddHabit("NineTeen", app.HabitTypeBit)
-	application.AddHabit("Twenty", app.HabitTypeBit)
+	// Initialize the core application with database
+	application, err := app.NewApp(dbPath)
+	if err != nil {
+		log.Fatalf("Failed to initialize app: %v", err)
+	}
+	defer application.Close()
+
+	// Run database migrations
+	if err := application.Migrate(); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
 
 	// Create and run TUI program
 	program := tui.NewProgram(application)

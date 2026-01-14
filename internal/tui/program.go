@@ -27,7 +27,7 @@ func NewProgram(application *app.App) *Program {
 	calendarHabits := make([]calendar.Habit, len(application.GetHabits()))
 	for i, h := range application.GetHabits() {
 		calendarHabits[i] = calendar.Habit{
-			ID:   h.ID,
+			ID:   h.Name,
 			Name: h.Name,
 			Type: calendar.HabitType(h.Type),
 		}
@@ -193,8 +193,8 @@ func (p *Program) handleAddCommand(args []string) command.Result {
 		return command.Error(fmt.Sprintf("Invalid habit type: %s (use: bit, count, float)", typeStr))
 	}
 
-	// Execute command
-	if err := p.app.AddHabit(name, habitType); err != nil {
+	// Execute command (default goal 0)
+	if _, err := p.app.CreateHabit(name, habitType, 0); err != nil {
 		return command.Error(fmt.Sprintf("Error: %s", err))
 	}
 
@@ -211,8 +211,24 @@ func (p *Program) handleDeleteCommand(args []string) command.Result {
 
 	name := args[0]
 
+	// Find habit by name and delete
+	habits := p.app.GetHabits()
+	var habitID int
+	found := false
+	for _, h := range habits {
+		if h.Name == name {
+			habitID = h.ID
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return command.Error(fmt.Sprintf("Habit '%s' not found", name))
+	}
+
 	// Execute command
-	if err := p.app.DeleteHabit(name); err != nil {
+	if err := p.app.DeleteHabit(habitID); err != nil {
 		return command.Error(fmt.Sprintf("Error: %s", err))
 	}
 
@@ -227,14 +243,44 @@ func (p *Program) handleTrackUpCommand(args []string) command.Result {
 	}
 
 	habitName := args[0]
-	value := ""
+	valueStr := "1"
 	if len(args) > 1 {
-		value = args[1]
+		valueStr = args[1]
+	}
+
+	// Find habit by name
+	habits := p.app.GetHabits()
+	var habitID int
+	var habitType app.HabitType
+	found := false
+	for _, h := range habits {
+		if h.Name == habitName {
+			habitID = h.ID
+			habitType = h.Type
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return command.Error(fmt.Sprintf("Habit '%s' not found", habitName))
+	}
+
+	// Parse value
+	var value float64
+	switch habitType {
+	case app.HabitTypeBit:
+		value = 1
+	case app.HabitTypeCount, app.HabitTypeFloat:
+		_, err := fmt.Sscanf(valueStr, "%f", &value)
+		if err != nil {
+			return command.Error(fmt.Sprintf("Invalid value: %s", valueStr))
+		}
 	}
 
 	// Execute command
 	selectedDate := p.calendar.GetSelectedDate()
-	if err := p.app.TrackUp(habitName, selectedDate, value); err != nil {
+	if err := p.app.UpsertEntry(habitID, selectedDate, value); err != nil {
 		return command.Error(fmt.Sprintf("Error: %s", err))
 	}
 
@@ -250,9 +296,35 @@ func (p *Program) handleTrackDownCommand(args []string) command.Result {
 
 	habitName := args[0]
 
+	// Find habit by name
+	habits := p.app.GetHabits()
+	var habitID int
+	var habitType app.HabitType
+	found := false
+	for _, h := range habits {
+		if h.Name == habitName {
+			habitID = h.ID
+			habitType = h.Type
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return command.Error(fmt.Sprintf("Habit '%s' not found", habitName))
+	}
+
 	// Execute command
 	selectedDate := p.calendar.GetSelectedDate()
-	if err := p.app.TrackDown(habitName, selectedDate); err != nil {
+	var value float64
+	switch habitType {
+	case app.HabitTypeBit:
+		value = 0
+	case app.HabitTypeCount, app.HabitTypeFloat:
+		value = 0
+	}
+
+	if err := p.app.UpsertEntry(habitID, selectedDate, value); err != nil {
 		return command.Error(fmt.Sprintf("Error: %s", err))
 	}
 
@@ -283,7 +355,7 @@ func (p *Program) reloadCalendar() {
 	calendarHabits := make([]calendar.Habit, len(p.app.GetHabits()))
 	for i, h := range p.app.GetHabits() {
 		calendarHabits[i] = calendar.Habit{
-			ID:   h.ID,
+			ID:   h.Name,
 			Name: h.Name,
 			Type: calendar.HabitType(h.Type),
 		}
@@ -303,11 +375,25 @@ func syncEntriesToCalendar(application *app.App, cal *calendar.Calendar) {
 		now := time.Now()
 		start := now.AddDate(-1, 0, 0)
 
-		for d := start; !d.After(now); d = d.AddDate(0, 0, 1) {
-			entry, exists := application.GetEntry(habit.ID, d)
-			if exists {
-				cal.SetEntry(habit.Name, d, entry.Completed, entry.Value)
+		entries, err := application.ListEntries(habit.ID, start, now)
+		if err != nil {
+			continue
+		}
+
+		for _, entry := range entries {
+			var completed bool
+			var value string
+			if habit.Type == app.HabitTypeBit {
+				completed = entry.Value == 1
+				value = ""
+			} else {
+				completed = entry.Value > 0
+				value = fmt.Sprintf("%.0f", entry.Value)
+				if value == "1.000000" {
+					value = "1"
+				}
 			}
+			cal.SetEntry(habit.Name, entry.Date, completed, value)
 		}
 	}
 }
