@@ -118,11 +118,18 @@ func (w *WeeklyView) RenderHeader() string {
 		daysToShow = 7
 	}
 
-	// Day names row
-	dayNames := []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
+	// Day names row - start from viewStartDate's weekday
+	allDayNames := []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
+	startDay := int(w.calendar.viewStartDate.Weekday())
+	if startDay == 0 {
+		startDay = 7 // Sunday becomes 7
+	}
+
+	// Create day names slice starting from the correct day
 	dayNamesRow := w.habitLabelStyle.Render("")
 	for i := 0; i < daysToShow; i++ {
-		dayName := dayNames[i%7]
+		dayIndex := (startDay - 1 + i) % 7
+		dayName := allDayNames[dayIndex]
 		dayNamesRow += w.dayNameStyle.Render(dayName)
 	}
 	sb.WriteString(dayNamesRow + "\n")
