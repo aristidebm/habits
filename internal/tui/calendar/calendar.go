@@ -67,13 +67,6 @@ type Calendar struct {
 func NewCalendar(habits []Habit) *Calendar {
 	now := time.Now()
 
-	// Calculate week start (Monday)
-	weekday := int(now.Weekday())
-	if weekday == 0 {
-		weekday = 7 // Sunday becomes 7
-	}
-	weekStart := now.AddDate(0, 0, -(weekday - 1))
-
 	// Month start
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 
@@ -83,11 +76,13 @@ func NewCalendar(habits []Habit) *Calendar {
 		viewMode:      ViewModeWeekly,
 		selectedDate:  now,
 		selectedHabit: 0,
-		viewStartDate: weekStart,
 		viewMonth:     monthStart,
 		width:         80,
 		height:        24,
 	}
+
+	// Calculate view start to center today horizontally (after width is set)
+	cal.centerDateInView(now)
 
 	// Initialize view renderers
 	cal.weeklyView = NewWeeklyView(cal)
@@ -200,6 +195,12 @@ func (c *Calendar) updateViewportSize() {
 	c.viewport.Width = c.width
 	c.viewport.Height = viewportHeight
 	c.ready = true
+
+	// Re-center today in weekly view when terminal resizes
+	if c.viewMode == ViewModeWeekly {
+		c.centerDateInView(time.Now())
+	}
+
 	c.updateViewportContent()
 }
 
@@ -336,12 +337,8 @@ func (c *Calendar) jumpToToday() {
 	now := time.Now()
 	c.selectedDate = now
 
-	// Adjust weekly view
-	weekday := int(now.Weekday())
-	if weekday == 0 {
-		weekday = 7
-	}
-	c.viewStartDate = now.AddDate(0, 0, -(weekday - 1))
+	// Adjust weekly view - center today
+	c.centerDateInView(now)
 
 	// Adjust monthly view
 	c.viewMonth = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
@@ -349,24 +346,30 @@ func (c *Calendar) jumpToToday() {
 
 // adjustWeeklyViewToSelection adjusts the weekly view to show the selected date
 func (c *Calendar) adjustWeeklyViewToSelection() {
-	// If selected date is before view start, shift view back
-	if c.selectedDate.Before(c.viewStartDate) {
-		weekday := int(c.selectedDate.Weekday())
-		if weekday == 0 {
-			weekday = 7
-		}
-		c.viewStartDate = c.selectedDate.AddDate(0, 0, -(weekday - 1))
+	availableWidth := c.width - 20
+	daysToShow := availableWidth / 8
+	if daysToShow < 7 {
+		daysToShow = 7
 	}
 
-	// If selected date is after view end, shift view forward
-	viewEndDate := c.viewStartDate.AddDate(0, 0, 6)
-	if c.selectedDate.After(viewEndDate) {
-		weekday := int(c.selectedDate.Weekday())
-		if weekday == 0 {
-			weekday = 7
-		}
-		c.viewStartDate = c.selectedDate.AddDate(0, 0, -(weekday - 1))
+	// Calculate view end
+	viewEndDate := c.viewStartDate.AddDate(0, 0, daysToShow-1)
+
+	// If selected date is before view start or after view end, center it
+	if c.selectedDate.Before(c.viewStartDate) || c.selectedDate.After(viewEndDate) {
+		c.centerDateInView(c.selectedDate)
 	}
+}
+
+// centerDateInView centers the given date in the weekly view based on current width
+func (c *Calendar) centerDateInView(date time.Time) {
+	availableWidth := c.width - 20
+	daysToShow := availableWidth / 8
+	if daysToShow < 7 {
+		daysToShow = 7
+	}
+	offset := daysToShow / 2
+	c.viewStartDate = date.AddDate(0, 0, -offset)
 }
 
 // View renders the component based on current view mode
