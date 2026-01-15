@@ -1,6 +1,7 @@
 package calendar
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -25,6 +26,19 @@ const (
 	HabitTypeFloat
 )
 
+func (ht HabitType) String() string {
+	switch ht {
+	case HabitTypeBit:
+		return "bit"
+	case HabitTypeCount:
+		return "count"
+	case HabitTypeFloat:
+		return "float"
+	default:
+		return ""
+	}
+}
+
 // Habit represents a single habit
 type Habit struct {
 	ID   string
@@ -42,8 +56,9 @@ type HabitEntry struct {
 // Calendar is the main calendar component that manages habits and their entries
 type Calendar struct {
 	// Data
-	habits  []Habit
-	entries map[string]map[time.Time]HabitEntry // habitName -> date -> entry
+	habits        []Habit
+	entries       map[string]map[time.Time]HabitEntry // habitName -> date -> entry
+	pendingHabits []Habit                             // Habits added but not yet written to database
 
 	// State
 	viewMode      ViewMode
@@ -465,5 +480,58 @@ func (c *Calendar) GetSelectedHabit() *Habit {
 	if c.selectedHabit >= 0 && c.selectedHabit < len(c.habits) {
 		return &c.habits[c.selectedHabit]
 	}
+	return nil
+}
+
+// ReloadHabits replaces the habits list
+func (c *Calendar) ReloadHabits(habits []Habit) {
+	c.habits = habits
+	c.selectedHabit = 0
+}
+
+// RemovePendingHabit removes a habit from pending list
+func (c *Calendar) RemovePendingHabit(name string) {
+	for i, h := range c.pendingHabits {
+		if h.Name == name {
+			if i == 0 {
+				c.pendingHabits = c.pendingHabits[1:]
+			} else {
+				c.pendingHabits = append(c.pendingHabits[:i], c.pendingHabits[i+1:]...)
+			}
+			break
+		}
+	}
+}
+
+// ClearPendingHabits clears all pending habits
+func (c *Calendar) ClearPendingHabits() {
+	c.pendingHabits = []Habit{}
+}
+
+// GetPendingHabits returns all pending habits
+func (c *Calendar) GetPendingHabits() []Habit {
+	return c.pendingHabits
+}
+
+// AddPendingHabit adds a habit to the pending list
+func (c *Calendar) AddPendingHabit(habit Habit) {
+	c.pendingHabits = append(c.pendingHabits, habit)
+}
+
+// WritePendingHabits writes all pending habits to database via Store
+func (c *Calendar) WritePendingHabits(createHabit func(name string, habitType string, goal float64) (int, error)) error {
+	var errs []error
+	for _, h := range c.pendingHabits {
+		id, err := createHabit(h.Name, h.Type.String(), 0)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to write habit '%s': %w", h.Name, err))
+		} else {
+			_ = id
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to write %d habits: %v", len(errs), errs)
+	}
+	c.ClearPendingHabits()
 	return nil
 }

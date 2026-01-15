@@ -35,8 +35,8 @@ func NewProgram(application *app.App) *Program {
 
 	cal := calendar.NewCalendar(calendarHabits)
 
-	// Sync entries from app to calendar
-	syncEntriesToCalendar(application, cal)
+	// Sync entries (but not pending habits - they have no entries yet)
+	syncEntriesToCalendar(application, cal, true)
 
 	cmdLine := command.NewCommandLine()
 
@@ -103,6 +103,13 @@ func (p *Program) registerCommands() {
 		Description: "Quit the application",
 		Usage:       "quit",
 		Handler:     p.handleQuitCommand,
+	})
+
+	p.commandLine.RegisterCommand(command.Command{
+		Name:        "write",
+		Description: "Write all pending habits to database",
+		Usage:       "write",
+		Handler:     p.handleWriteCommand,
 	})
 }
 
@@ -193,14 +200,15 @@ func (p *Program) handleAddCommand(args []string) command.Result {
 		return command.Error(fmt.Sprintf("Invalid habit type: %s (use: bit, count, float)", typeStr))
 	}
 
-	// Execute command (default goal 0)
-	if _, err := p.app.CreateHabit(name, habitType, 0); err != nil {
-		return command.Error(fmt.Sprintf("Error: %s", err))
-	}
+	// Add to pending habits (not database yet)
+	p.calendar.AddPendingHabit(calendar.Habit{
+		Name: name,
+		Type: calendar.HabitType(habitType),
+	})
 
 	// Reload calendar with new habits
 	p.reloadCalendar()
-	return command.Success(fmt.Sprintf("Added habit: %s", name))
+	return command.Success(fmt.Sprintf("Added habit: %s (pending, use :write to save)", name))
 }
 
 func (p *Program) handleDeleteCommand(args []string) command.Result {
@@ -211,9 +219,19 @@ func (p *Program) handleDeleteCommand(args []string) command.Result {
 
 	name := args[0]
 
-	// Find habit by name and delete
-	habits := p.app.GetHabits()
+	// Check pending habits first
+	pending := p.calendar.GetPendingHabits()
 	var habitID int
+	for _, h := range pending {
+		if h.Name == name {
+			p.calendar.RemovePendingHabit(name)
+			p.reloadCalendar()
+			return command.Success(fmt.Sprintf("Deleted pending habit: %s", name))
+		}
+	}
+
+	// Find habit by name in database
+	habits := p.app.GetHabits()
 	found := false
 	for _, h := range habits {
 		if h.Name == name {
@@ -332,6 +350,40 @@ func (p *Program) handleTrackDownCommand(args []string) command.Result {
 	return command.Success(fmt.Sprintf("Tracked down: %s", habitName))
 }
 
+func (p *Program) handleWriteCommand(args []string) command.Result {
+	pending := p.calendar.GetPendingHabits()
+	if len(pending) == 0 {
+		return command.Error("No pending habits to write")
+	}
+
+	if err := p.calendar.WritePendingHabits(func(name string, habitType string, goal float64) (int, error) {
+		var hType app.HabitType
+		switch habitType {
+		case "bit":
+			hType = app.HabitTypeBit
+		case "count":
+			hType = app.HabitTypeCount
+		case "float":
+			hType = app.HabitTypeFloat
+		default:
+			return 0, fmt.Errorf("invalid habit type: %s", habitType)
+		}
+		habit, err := p.app.CreateHabit(name, hType, goal)
+		if err != nil {
+			return 0, err
+		}
+		if habit == nil {
+			return 0, fmt.Errorf("created habit is nil")
+		}
+		return habit.ID, nil
+	}); err != nil {
+		return command.Error(fmt.Sprintf("Error: %s", err))
+	}
+
+	p.reloadCalendar()
+	return command.Success(fmt.Sprintf("Wrote %d habits to database", len(pending)))
+}
+
 func (p *Program) handleNextMonthCommand(args []string) command.Result {
 	// No arguments needed - validation implicit
 	p.calendar.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'L'}})
@@ -351,6 +403,9 @@ func (p *Program) handleQuitCommand(args []string) command.Result {
 
 // reloadCalendar reloads the calendar with current app data
 func (p *Program) reloadCalendar() {
+	// Save pending habits before reload
+	pending := p.calendar.GetPendingHabits()
+
 	// Convert app habits to calendar habits
 	calendarHabits := make([]calendar.Habit, len(p.app.GetHabits()))
 	for i, h := range p.app.GetHabits() {
@@ -361,15 +416,23 @@ func (p *Program) reloadCalendar() {
 		}
 	}
 
-	p.calendar = calendar.NewCalendar(calendarHabits)
+	// Append pending habits to calendar habits list
+	calendarHabits = append(calendarHabits, pending...)
+
+	p.calendar.ReloadHabits(calendarHabits)
 	p.calendar.Resize(p.width, p.height-2)
 
-	// Sync entries
-	syncEntriesToCalendar(p.app, p.calendar)
+	// Restore pending habits
+	for _, ph := range pending {
+		p.calendar.AddPendingHabit(ph)
+	}
+
+	// Sync entries (but not pending habits - they have no entries yet)
+	syncEntriesToCalendar(p.app, p.calendar, true)
 }
 
 // syncEntriesToCalendar syncs entries from app to calendar
-func syncEntriesToCalendar(application *app.App, cal *calendar.Calendar) {
+func syncEntriesToCalendar(application *app.App, cal *calendar.Calendar, skipPending bool) {
 	for _, habit := range application.GetHabits() {
 		// Get entries for the past year
 		now := time.Now()

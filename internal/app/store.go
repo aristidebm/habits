@@ -48,6 +48,27 @@ func (s *Store) GetHabit(id int) (*Habit, error) {
 	return h, nil
 }
 
+func (s *Store) GetHabitByName(name string) (*Habit, error) {
+	h := &Habit{}
+	var kindStr string
+	err := s.db.QueryRow(
+		"SELECT id, name, kind, goal, created_at FROM habits WHERE name = ?",
+		name,
+	).Scan(&h.ID, &h.Name, &kindStr, &h.Goal, &h.CreatedAt)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get habit by name: %w", err)
+	}
+
+	ht, err := HabitTypeFromString(kindStr)
+	if err != nil {
+		return nil, err
+	}
+	h.Type = ht
+
+	return h, nil
+}
+
 func (s *Store) ListHabits() ([]Habit, error) {
 	rows, err := s.db.Query("SELECT id, name, kind, goal, created_at FROM habits ORDER BY id")
 	if err != nil {
