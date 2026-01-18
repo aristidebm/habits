@@ -26,6 +26,15 @@ func main() {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
+	if os.Getenv("DEBUG") == "1" {
+		f, err := tea.LogToFile("/tmp/habits-debug.log", "debug")
+		if err != nil {
+			fmt.Println("fatal:", err)
+			os.Exit(1)
+		}
+		defer f.Close()
+	}
+
 	// Create and run TUI program
 	program := tui.NewProgram(application)
 	p := tea.NewProgram(program, tea.WithAltScreen())

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -438,10 +439,14 @@ func syncEntriesToCalendar(application *app.App, cal *calendar.Calendar, skipPen
 		now := time.Now()
 		start := now.AddDate(-1, 0, 0)
 
+		slog.Info("Attempt to get entries with", "start", start, "end", now)
+
 		entries, err := application.ListEntries(habit.ID, start, now)
 		if err != nil {
 			continue
 		}
+
+		slog.Info("Got entries from database", "count", len(entries))
 
 		for _, entry := range entries {
 			var completed bool
