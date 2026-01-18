@@ -1,7 +1,11 @@
-.PHONY: run format migrate-up migrate-down migrate-create
+.PHONY: run format migrate-up migrate-down migrate-create build
 
-run:
-	@go run ./...
+build:
+	# @mkdir ./build/
+	@go build -o ./build ./...
+
+run: build
+	@./build/cmd
 
 format:
 	@go fmt ./...
