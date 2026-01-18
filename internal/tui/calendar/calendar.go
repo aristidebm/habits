@@ -42,9 +42,10 @@ func (ht HabitType) String() string {
 
 // Habit represents a single habit
 type Habit struct {
-	ID   string
-	Name string
-	Type HabitType
+	ID      int
+	Name    string
+	Type    HabitType
+	Pending bool
 }
 
 // HabitEntry represents a habit entry for a specific date
@@ -52,14 +53,14 @@ type HabitEntry struct {
 	Date      time.Time
 	Completed bool   // for bit type
 	Value     string // for count/float type, "-" for skipped
+	Pending   bool
 }
 
 // Calendar is the main calendar component that manages habits and their entries
 type Calendar struct {
 	// Data
-	habits        []Habit
-	entries       map[string]map[time.Time]HabitEntry // habitName -> date -> entry
-	pendingHabits []Habit                             // Habits added but not yet written to database
+	habits  []Habit
+	entries map[string]map[time.Time]HabitEntry // habitName -> date -> entry
 
 	// State
 	viewMode      ViewMode
@@ -179,6 +180,22 @@ func (c *Calendar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Jump to today
 			c.jumpToToday()
 			c.updateViewportContent()
+
+		case "enter":
+			// Modify entry at selected position
+			habit := c.GetSelectedHabit()
+			if habit != nil {
+				c.toggleOrIncrementEntry(*habit, c.selectedDate)
+				c.updateViewportContent()
+			}
+
+		case "backspace":
+			// Decrement entry for count/float habits
+			habit := c.GetSelectedHabit()
+			if habit != nil && (habit.Type == HabitTypeCount || habit.Type == HabitTypeFloat) {
+				c.decrementEntry(*habit, c.selectedDate)
+				c.updateViewportContent()
+			}
 
 		default:
 			// Pass other keys to viewport for scrolling
@@ -405,7 +422,7 @@ func (c *Calendar) View() string {
 }
 
 // SetEntry sets an entry for a habit on a specific date
-func (c *Calendar) SetEntry(habitName string, date time.Time, completed bool, value string) {
+func (c *Calendar) SetEntry(habitName string, date time.Time, completed bool, value string, pending bool) {
 	if c.entries[habitName] == nil {
 		c.entries[habitName] = make(map[time.Time]HabitEntry)
 	}
@@ -416,6 +433,7 @@ func (c *Calendar) SetEntry(habitName string, date time.Time, completed bool, va
 		Date:      dateKey,
 		Completed: completed,
 		Value:     value,
+		Pending:   pending,
 	}
 }
 
@@ -494,13 +512,9 @@ func (c *Calendar) ReloadHabits(habits []Habit) {
 
 // RemovePendingHabit removes a habit from pending list
 func (c *Calendar) RemovePendingHabit(name string) {
-	for i, h := range c.pendingHabits {
-		if h.Name == name {
-			if i == 0 {
-				c.pendingHabits = c.pendingHabits[1:]
-			} else {
-				c.pendingHabits = append(c.pendingHabits[:i], c.pendingHabits[i+1:]...)
-			}
+	for i := range c.habits {
+		if c.habits[i].Name == name {
+			c.habits = append(c.habits[:i], c.habits[i+1:]...)
 			break
 		}
 	}
@@ -508,33 +522,195 @@ func (c *Calendar) RemovePendingHabit(name string) {
 
 // ClearPendingHabits clears all pending habits
 func (c *Calendar) ClearPendingHabits() {
-	c.pendingHabits = []Habit{}
+	var filtered []Habit
+	for _, h := range c.habits {
+		if !h.Pending {
+			filtered = append(filtered, h)
+		}
+	}
+	c.habits = filtered
 }
 
 // GetPendingHabits returns all pending habits
 func (c *Calendar) GetPendingHabits() []Habit {
-	return c.pendingHabits
+	var pending []Habit
+	for _, h := range c.habits {
+		if h.Pending {
+			pending = append(pending, h)
+		}
+	}
+	return pending
 }
 
 // AddPendingHabit adds a habit to the pending list
 func (c *Calendar) AddPendingHabit(habit Habit) {
-	c.pendingHabits = append(c.pendingHabits, habit)
-}
-
-// WritePendingHabits writes all pending habits to database via Store
-func (c *Calendar) WritePendingHabits(createHabit func(name string, habitType string, goal float64) (int, error)) error {
-	var errs []error
-	for _, h := range c.pendingHabits {
-		id, err := createHabit(h.Name, h.Type.String(), 0)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("failed to write habit '%s': %w", h.Name, err))
-		} else {
-			_ = id
+	for _, h := range c.habits {
+		if h.Name == habit.Name {
+			return
 		}
 	}
-	if len(errs) > 0 {
-		return fmt.Errorf("failed to write %d habits: %v", len(errs), errs)
+	habit.Pending = true
+	c.habits = append(c.habits, habit)
+}
+
+// ToggleEntry toggles or increments an entry based on habit type
+func (c *Calendar) toggleOrIncrementEntry(habit Habit, date time.Time) {
+	switch habit.Type {
+	case HabitTypeBit:
+		entry, exists := c.GetEntry(habit.Name, date)
+		if exists {
+			c.SetEntry(habit.Name, date, !entry.Completed, entry.Value, true)
+		} else {
+			c.SetEntry(habit.Name, date, true, "-", true)
+		}
+
+	case HabitTypeCount, HabitTypeFloat:
+		entry, exists := c.GetEntry(habit.Name, date)
+		if exists && entry.Value != "-" && entry.Value != "" {
+			var val int
+			fmt.Sscanf(entry.Value, "%d", &val)
+			val++
+			c.SetEntry(habit.Name, date, entry.Completed, fmt.Sprintf("%d", val), true)
+		} else {
+			c.SetEntry(habit.Name, date, false, "1", true)
+		}
 	}
-	c.ClearPendingHabits()
+}
+
+// DecrementEntry decrements an entry for count/float habits
+func (c *Calendar) decrementEntry(habit Habit, date time.Time) {
+	entry, exists := c.GetEntry(habit.Name, date)
+
+	if exists && entry.Value != "-" && entry.Value != "" {
+		var val int
+		fmt.Sscanf(entry.Value, "%d", &val)
+		if val > 1 {
+			val--
+			c.SetEntry(habit.Name, date, entry.Completed, fmt.Sprintf("%d", val), true)
+		} else {
+			c.SetEntry(habit.Name, date, false, "-", true)
+		}
+	}
+}
+
+// GetPendingEntries returns all pending entries
+func (c *Calendar) GetPendingEntries() []struct {
+	HabitName string
+	Date      time.Time
+	Completed bool
+	Value     string
+} {
+	var pending []struct {
+		HabitName string
+		Date      time.Time
+		Completed bool
+		Value     string
+	}
+
+	for habitName, habitEntries := range c.entries {
+		for _, entry := range habitEntries {
+			if entry.Pending {
+				pending = append(pending, struct {
+					HabitName string
+					Date      time.Time
+					Completed bool
+					Value     string
+				}{
+					HabitName: habitName,
+					Date:      entry.Date,
+					Completed: entry.Completed,
+					Value:     entry.Value,
+				})
+			}
+		}
+	}
+
+	return pending
+}
+
+// ClearPendingEntries clears pending flag from all entries
+func (c *Calendar) ClearPendingEntries() {
+	for habitName := range c.entries {
+		for dateKey := range c.entries[habitName] {
+			entry := c.entries[habitName][dateKey]
+			entry.Pending = false
+			c.entries[habitName][dateKey] = entry
+		}
+	}
+}
+
+// WritePendingHabits writes all pending habits and entries to database via Store
+func (c *Calendar) WritePendingHabits(createHabitsBulk func(habits []struct {
+	Name      string
+	HabitType string
+	Goal      float64
+}) ([]int, error), upsertEntry func(habitID int, date time.Time, value float64) error) error {
+	var pendingHabits []Habit
+	for _, h := range c.habits {
+		if h.Pending {
+			pendingHabits = append(pendingHabits, h)
+		}
+	}
+
+	if len(pendingHabits) == 0 && len(c.GetPendingEntries()) == 0 {
+		return nil
+	}
+
+	if len(pendingHabits) > 0 {
+		habitInputs := make([]struct {
+			Name      string
+			HabitType string
+			Goal      float64
+		}, len(pendingHabits))
+
+		for i, h := range pendingHabits {
+			habitInputs[i] = struct {
+				Name      string
+				HabitType string
+				Goal      float64
+			}{
+				Name:      h.Name,
+				HabitType: h.Type.String(),
+				Goal:      0,
+			}
+		}
+
+		if _, err := createHabitsBulk(habitInputs); err != nil {
+			return fmt.Errorf("failed to write habits: %w", err)
+		}
+
+		for i := range c.habits {
+			c.habits[i].Pending = false
+		}
+	}
+
+	pendingEntries := c.GetPendingEntries()
+	for _, entry := range pendingEntries {
+		habitID := -1
+		for _, h := range c.habits {
+			if h.Name == entry.HabitName {
+				habitID = h.ID
+				break
+			}
+		}
+
+		if habitID == -1 {
+			continue
+		}
+
+		var value float64
+		if entry.Completed {
+			value = 1
+		} else if entry.Value != "-" && entry.Value != "" {
+			fmt.Sscanf(entry.Value, "%f", &value)
+		}
+
+		if err := upsertEntry(habitID, entry.Date, value); err != nil {
+			return fmt.Errorf("failed to upsert entry for %s on %s: %w", entry.HabitName, entry.Date.Format("2006-01-02"), err)
+		}
+	}
+
+	c.ClearPendingEntries()
+
 	return nil
 }

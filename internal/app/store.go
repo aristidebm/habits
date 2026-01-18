@@ -3,6 +3,8 @@ package app
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -25,6 +27,78 @@ func (s *Store) CreateHabit(name string, habitType HabitType, goal float64) (*Ha
 	}
 
 	return s.GetHabit(int(id))
+}
+
+func (s *Store) CreateHabitsBulk(habits []struct {
+	Name      string
+	HabitType HabitType
+	Goal      float64
+}) ([]Habit, error) {
+	if len(habits) == 0 {
+		return []Habit{}, nil
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	valuePlaceholders := make([]string, len(habits))
+	args := make([]any, 0, len(habits)*3)
+
+	for i, h := range habits {
+		valuePlaceholders[i] = "(?, ?, ?)"
+		args = append(args, h.Name, h.HabitType.String(), h.Goal)
+	}
+
+	query := "INSERT INTO habits (name, kind, goal) VALUES " + strings.Join(valuePlaceholders, ",")
+	if _, err = tx.Exec(query, args...); err != nil {
+		err = fmt.Errorf("failed to bulk insert habits: %w", err)
+		return nil, err
+	}
+
+	nameArgs := make([]any, len(habits))
+	namePlaceholders := make([]string, len(habits))
+	for i, h := range habits {
+		nameArgs[i] = h.Name
+		namePlaceholders[i] = "?"
+	}
+
+	selectQuery := "SELECT id, name, kind, goal, created_at FROM habits WHERE name IN (" +
+		strings.Join(namePlaceholders, ",") + ") ORDER BY id DESC LIMIT " +
+		strconv.Itoa(len(habits))
+
+	rows, err := tx.Query(selectQuery, nameArgs...)
+	if err != nil {
+		err = fmt.Errorf("failed to query created habits: %w", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	var createdHabits []Habit
+	for rows.Next() {
+		var h Habit
+		var kindStr string
+		if err := rows.Scan(&h.ID, &h.Name, &kindStr, &h.Goal, &h.CreatedAt); err != nil {
+			err = fmt.Errorf("failed to scan habit: %w", err)
+			return nil, err
+		}
+		h.Type, _ = HabitTypeFromString(kindStr)
+		createdHabits = append(createdHabits, h)
+	}
+
+	if err = tx.Commit(); err != nil {
+		err = fmt.Errorf("failed to commit transaction: %w", err)
+		return nil, err
+	}
+
+	return createdHabits, nil
 }
 
 func (s *Store) GetHabit(id int) (*Habit, error) {
@@ -166,14 +240,6 @@ func (s *Store) GetHabits() []Habit {
 		return []Habit{}
 	}
 	return habits
-}
-
-func (s *Store) GetEntryByID(habitID int, date time.Time) (HabitEntry, bool) {
-	entry, err := s.GetEntry(habitID, date)
-	if err != nil || entry == nil {
-		return HabitEntry{}, false
-	}
-	return *entry, true
 }
 
 func (s *Store) Close() error {

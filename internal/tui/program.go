@@ -28,9 +28,10 @@ func NewProgram(application *app.App) *Program {
 	calendarHabits := make([]calendar.Habit, len(application.GetHabits()))
 	for i, h := range application.GetHabits() {
 		calendarHabits[i] = calendar.Habit{
-			ID:   h.Name,
-			Name: h.Name,
-			Type: calendar.HabitType(h.Type),
+			ID:      h.ID,
+			Name:    h.Name,
+			Type:    calendar.HabitType(h.Type),
+			Pending: false,
 		}
 	}
 
@@ -203,6 +204,7 @@ func (p *Program) handleAddCommand(args []string) command.Result {
 
 	// Add to pending habits (not database yet)
 	p.calendar.AddPendingHabit(calendar.Habit{
+		ID:   0,
 		Name: name,
 		Type: calendar.HabitType(habitType),
 	})
@@ -352,37 +354,66 @@ func (p *Program) handleTrackDownCommand(args []string) command.Result {
 }
 
 func (p *Program) handleWriteCommand(args []string) command.Result {
-	pending := p.calendar.GetPendingHabits()
-	if len(pending) == 0 {
-		return command.Error("No pending habits to write")
+	pendingHabits := p.calendar.GetPendingHabits()
+	pendingEntries := p.calendar.GetPendingEntries()
+	if len(pendingHabits) == 0 && len(pendingEntries) == 0 {
+		return command.Error("No pending habits or entries to write")
 	}
 
-	if err := p.calendar.WritePendingHabits(func(name string, habitType string, goal float64) (int, error) {
-		var hType app.HabitType
-		switch habitType {
-		case "bit":
-			hType = app.HabitTypeBit
-		case "count":
-			hType = app.HabitTypeCount
-		case "float":
-			hType = app.HabitTypeFloat
-		default:
-			return 0, fmt.Errorf("invalid habit type: %s", habitType)
+	if err := p.calendar.WritePendingHabits(func(habits []struct {
+		Name      string
+		HabitType string
+		Goal      float64
+	}) ([]int, error) {
+		habitInputs := make([]struct {
+			Name      string
+			HabitType app.HabitType
+			Goal      float64
+		}, len(habits))
+
+		for i, h := range habits {
+			var hType app.HabitType
+			switch h.HabitType {
+			case "bit":
+				hType = app.HabitTypeBit
+			case "count":
+				hType = app.HabitTypeCount
+			case "float":
+				hType = app.HabitTypeFloat
+			default:
+				return nil, fmt.Errorf("invalid habit type: %s", h.HabitType)
+			}
+			habitInputs[i] = struct {
+				Name      string
+				HabitType app.HabitType
+				Goal      float64
+			}{
+				Name:      h.Name,
+				HabitType: hType,
+				Goal:      h.Goal,
+			}
 		}
-		habit, err := p.app.CreateHabit(name, hType, goal)
+
+		createdHabits, err := p.app.CreateHabitsBulk(habitInputs)
 		if err != nil {
-			return 0, err
+			return nil, err
 		}
-		if habit == nil {
-			return 0, fmt.Errorf("created habit is nil")
+
+		ids := make([]int, len(createdHabits))
+		for i, h := range createdHabits {
+			ids[i] = h.ID
 		}
-		return habit.ID, nil
+
+		return ids, nil
+	}, func(habitID int, date time.Time, value float64) error {
+		return p.app.UpsertEntry(habitID, date, value)
 	}); err != nil {
 		return command.Error(fmt.Sprintf("Error: %s", err))
 	}
 
 	p.reloadCalendar()
-	return command.Success(fmt.Sprintf("Wrote %d habits to database", len(pending)))
+	msg := fmt.Sprintf("Wrote %d habits and %d entries to database", len(pendingHabits), len(pendingEntries))
+	return command.Success(msg)
 }
 
 func (p *Program) handleNextMonthCommand(args []string) command.Result {
@@ -411,9 +442,10 @@ func (p *Program) reloadCalendar() {
 	calendarHabits := make([]calendar.Habit, len(p.app.GetHabits()))
 	for i, h := range p.app.GetHabits() {
 		calendarHabits[i] = calendar.Habit{
-			ID:   h.Name,
-			Name: h.Name,
-			Type: calendar.HabitType(h.Type),
+			ID:      h.ID,
+			Name:    h.Name,
+			Type:    calendar.HabitType(h.Type),
+			Pending: false,
 		}
 	}
 
@@ -422,11 +454,6 @@ func (p *Program) reloadCalendar() {
 
 	p.calendar.ReloadHabits(calendarHabits)
 	p.calendar.Resize(p.width, p.height-2)
-
-	// Restore pending habits
-	for _, ph := range pending {
-		p.calendar.AddPendingHabit(ph)
-	}
 
 	// Sync entries (but not pending habits - they have no entries yet)
 	syncEntriesToCalendar(p.app, p.calendar, true)
@@ -461,7 +488,7 @@ func syncEntriesToCalendar(application *app.App, cal *calendar.Calendar, skipPen
 					value = "1"
 				}
 			}
-			cal.SetEntry(habit.Name, entry.Date, completed, value)
+			cal.SetEntry(habit.Name, entry.Date, completed, value, false)
 		}
 	}
 }

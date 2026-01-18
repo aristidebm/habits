@@ -61,7 +61,7 @@ func NewMonthlyView(calendar *Calendar) *MonthlyView {
 	}
 }
 
-// RenderHeader renders the fixed header (month/year)
+// RenderHeader renders fixed header (month/year)
 func (m *MonthlyView) RenderHeader() string {
 	header := fmt.Sprintf("%s %d",
 		m.calendar.viewMonth.Format("January"),
@@ -70,7 +70,7 @@ func (m *MonthlyView) RenderHeader() string {
 	return m.headerStyle.Render(header)
 }
 
-// RenderContent renders the scrollable content (habit cards)
+// RenderContent renders scrollable content (habit cards)
 func (m *MonthlyView) RenderContent() string {
 	if len(m.calendar.habits) == 0 {
 		return "No habits to display"
@@ -127,7 +127,7 @@ func (m *MonthlyView) RenderContent() string {
 	return sb.String()
 }
 
-// Render renders the complete monthly view (for backward compatibility)
+// Render renders complete monthly view (for backward compatibility)
 func (m *MonthlyView) Render() string {
 	return m.RenderHeader() + "\n\n" + m.RenderContent()
 }
@@ -238,7 +238,7 @@ func (m *MonthlyView) getCompactCellValue(habit Habit, date time.Time) string {
 	return "◦"
 }
 
-// getSelectedDateStats returns the number of completed and remaining habits for the selected date
+// getSelectedDateStats returns number of completed and remaining habits for selected date
 func (m *MonthlyView) getSelectedDateStats() (completed, remaining int) {
 	selectedDate := m.calendar.selectedDate
 
