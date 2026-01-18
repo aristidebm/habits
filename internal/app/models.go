@@ -54,3 +54,31 @@ type HabitEntry struct {
 	Date      time.Time
 	CreatedAt time.Time
 }
+
+type HabitNote struct {
+	ID           int
+	HabitEntryID int
+	Note         string
+	CreatedAt    time.Time
+}
+
+// Export structures for JSON output
+
+type ExportNote struct {
+	Note string `json:"note"`
+}
+
+type ExportEntry struct {
+	ID    int          `json:"id"`
+	Date  string       `json:"date"`
+	Value float64      `json:"value"`
+	Notes []ExportNote `json:"notes"`
+}
+
+type ExportHabit struct {
+	ID      int           `json:"id"`
+	Name    string        `json:"name"`
+	Goal    float64       `json:"goal"`
+	Kind    string        `json:"kind"`
+	Entries []ExportEntry `json:"entries"`
+}

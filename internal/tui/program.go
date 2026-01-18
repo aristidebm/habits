@@ -1,8 +1,10 @@
 package tui
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -112,6 +114,13 @@ func (p *Program) registerCommands() {
 		Description: "Write all pending habits to database",
 		Usage:       "write",
 		Handler:     p.handleWriteCommand,
+	})
+
+	p.commandLine.RegisterCommand(command.Command{
+		Name:        "export",
+		Description: "Export all habits and entries to JSON file",
+		Usage:       "export <path>",
+		Handler:     p.handleExportCommand,
 	})
 }
 
@@ -491,4 +500,34 @@ func syncEntriesToCalendar(application *app.App, cal *calendar.Calendar, skipPen
 			cal.SetEntry(habit.Name, entry.Date, completed, value, false)
 		}
 	}
+}
+
+func (p *Program) handleExportCommand(args []string) command.Result {
+	// Validate arguments
+	if len(args) < 1 {
+		return command.Error("Usage: export <path>")
+	}
+
+	path := args[0]
+
+	// Export habits and entries
+	exportHabits, err := p.app.Export()
+	if err != nil {
+		return command.Error(fmt.Sprintf("Error exporting data: %s", err))
+	}
+
+	// Write to JSON file
+	file, err := os.Create(path)
+	if err != nil {
+		return command.Error(fmt.Sprintf("Error creating file: %s", err))
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(exportHabits); err != nil {
+		return command.Error(fmt.Sprintf("Error writing JSON: %s", err))
+	}
+
+	return command.Success(fmt.Sprintf("Exported %d habits to %s", len(exportHabits), path))
 }

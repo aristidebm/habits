@@ -242,6 +242,30 @@ func (s *Store) GetHabits() []Habit {
 	return habits
 }
 
+func (s *Store) ListNotes(habitEntryID int) ([]HabitNote, error) {
+	rows, err := s.db.Query(`
+		SELECT id, habit_entry_id, note, created_at
+		FROM habit_notes
+		WHERE habit_entry_id = ?
+		ORDER BY created_at
+	`, habitEntryID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list notes: %w", err)
+	}
+	defer rows.Close()
+
+	var notes []HabitNote
+	for rows.Next() {
+		var n HabitNote
+		if err := rows.Scan(&n.ID, &n.HabitEntryID, &n.Note, &n.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan note: %w", err)
+		}
+		notes = append(notes, n)
+	}
+
+	return notes, nil
+}
+
 func (s *Store) Close() error {
 	if s.db != nil {
 		return s.db.Close()
