@@ -29,7 +29,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(os.Getenv("DEBUG")) > 0 {
-		f, err := tea.LogToFile("debug.log", "debug")
+		f, err := tea.LogToFile("/tmp/debug.log", "debug")
 		if err != nil {
 			fmt.Println("fatal:", err)
 			os.Exit(1)
