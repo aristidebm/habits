@@ -226,21 +226,6 @@ func newTrackDownCmd() *cobra.Command {
 	return cmd
 }
 
-// newWriteCmd creates the write command
-func newWriteCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "write",
-		Short: "Write all pending habits to database",
-		Long:  `This command is primarily used by the TUI. Use add/delete commands instead.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("The write command is primarily used by the TUI. Use add/delete commands instead.")
-			return nil
-		},
-	}
-
-	return cmd
-}
-
 // newExportCmd creates the export command
 func newExportCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -282,38 +267,6 @@ func newExportCmd() *cobra.Command {
 			}
 
 			fmt.Printf("Exported %d habits to %s\n", len(exportHabits), path)
-			return nil
-		},
-	}
-
-	return cmd
-}
-
-// newNextMonthCmd creates the next-month command
-func newNextMonthCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "next-month",
-		Short: "Navigate to next month (TUI only)",
-		Long:  `This command is only available in the TUI interface.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("The next-month command is only available in the TUI interface.")
-			fmt.Println("Run 'habits tui' to launch the interactive interface.")
-			return nil
-		},
-	}
-
-	return cmd
-}
-
-// newPrevMonthCmd creates the prev-month command
-func newPrevMonthCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "prev-month",
-		Short: "Navigate to previous month (TUI only)",
-		Long:  `This command is only available in the TUI interface.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("The prev-month command is only available in the TUI interface.")
-			fmt.Println("Run 'habits tui' to launch the interactive interface.")
 			return nil
 		},
 	}

@@ -28,9 +28,6 @@ func NewRootCmd() *cobra.Command {
 	cmd.AddCommand(newDeleteCmd())
 	cmd.AddCommand(newTrackUpCmd())
 	cmd.AddCommand(newTrackDownCmd())
-	cmd.AddCommand(newNextMonthCmd())
-	cmd.AddCommand(newPrevMonthCmd())
-	cmd.AddCommand(newWriteCmd())
 	cmd.AddCommand(newExportCmd())
 
 	return cmd
