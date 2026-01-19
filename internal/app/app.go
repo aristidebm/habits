@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -41,8 +42,8 @@ func (a *App) Migrate() error {
 	return Migrate(a.Store.db)
 }
 
-func (a *App) Export() ([]ExportHabit, error) {
-	habits, err := a.ListHabits()
+func (a *App) Export(ctx context.Context) ([]ExportHabit, error) {
+	habits, err := a.ListHabits(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list habits: %w", err)
 	}
@@ -52,7 +53,7 @@ func (a *App) Export() ([]ExportHabit, error) {
 		// Get all entries for this habit (no date limit)
 		startDate := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 		endDate := time.Now().AddDate(10, 0, 0) // Far future
-		entries, err := a.ListEntries(habit.ID, startDate, endDate)
+		entries, err := a.ListEntries(ctx, habit.ID, startDate, endDate)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list entries for habit %s: %w", habit.Name, err)
 		}
@@ -60,7 +61,7 @@ func (a *App) Export() ([]ExportHabit, error) {
 		exportEntries := []ExportEntry{}
 		for _, entry := range entries {
 			// Get notes for this entry
-			notes, err := a.ListNotes(entry.ID)
+			notes, err := a.ListNotes(ctx, entry.ID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to list notes for entry %d: %w", entry.ID, err)
 			}

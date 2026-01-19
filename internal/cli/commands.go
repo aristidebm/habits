@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -47,7 +48,7 @@ func newAddCmd() *cobra.Command {
 				return fmt.Errorf("invalid habit type: %s (use: bit, count, float)", typeStr)
 			}
 
-			habit, err := application.CreateHabit(name, habitType, 0)
+			habit, err := application.CreateHabit(context.Background(), name, habitType, 0)
 			if err != nil {
 				return fmt.Errorf("failed to create habit: %w", err)
 			}
@@ -78,12 +79,12 @@ func newDeleteCmd() *cobra.Command {
 
 			name := args[0]
 
-			habit, err := application.GetHabitByName(name)
+			habit, err := application.GetHabitByName(context.Background(), name)
 			if err != nil {
 				return fmt.Errorf("habit '%s' not found: %w", name, err)
 			}
 
-			if err := application.DeleteHabit(habit.ID); err != nil {
+			if err := application.DeleteHabit(context.Background(), habit.ID); err != nil {
 				return fmt.Errorf("failed to delete habit: %w", err)
 			}
 
@@ -169,7 +170,7 @@ func newTrackUpCmd() *cobra.Command {
 				}
 			}
 
-			habit, err := application.GetHabitByName(habitName)
+			habit, err := application.GetHabitByName(context.Background(), habitName)
 			if err != nil {
 				return fmt.Errorf("habit '%s' not found: %w", habitName, err)
 			}
@@ -186,7 +187,7 @@ func newTrackUpCmd() *cobra.Command {
 			}
 
 			date, _ := time.Parse("2006-01-02", dateStr)
-			if err := application.UpsertEntry(habit.ID, date, value); err != nil {
+			if err := application.UpsertEntry(context.Background(), habit.ID, date, value); err != nil {
 				return fmt.Errorf("failed to track habit: %w", err)
 			}
 
@@ -233,7 +234,7 @@ func newTrackDownCmd() *cobra.Command {
 				}
 			}
 
-			habit, err := application.GetHabitByName(habitName)
+			habit, err := application.GetHabitByName(context.Background(), habitName)
 			if err != nil {
 				return fmt.Errorf("habit '%s' not found: %w", habitName, err)
 			}
@@ -247,7 +248,7 @@ func newTrackDownCmd() *cobra.Command {
 			}
 
 			date, _ := time.Parse("2006-01-02", dateStr)
-			if err := application.UpsertEntry(habit.ID, date, value); err != nil {
+			if err := application.UpsertEntry(context.Background(), habit.ID, date, value); err != nil {
 				return fmt.Errorf("failed to track habit: %w", err)
 			}
 
@@ -283,7 +284,7 @@ func newExportCmd() *cobra.Command {
 
 			path := args[0]
 
-			exportHabits, err := application.Export()
+			exportHabits, err := application.Export(context.Background())
 			if err != nil {
 				return fmt.Errorf("failed to export data: %w", err)
 			}

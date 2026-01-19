@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -27,8 +28,8 @@ type Program struct {
 // NewProgram creates a new TUI program
 func NewProgram(application *app.App) *Program {
 	// Convert app habits to calendar habits
-	calendarHabits := make([]calendar.Habit, len(application.GetHabits()))
-	for i, h := range application.GetHabits() {
+	calendarHabits := make([]calendar.Habit, len(application.GetHabits(context.Background())))
+	for i, h := range application.GetHabits(context.Background()) {
 		calendarHabits[i] = calendar.Habit{
 			ID:      h.ID,
 			Name:    h.Name,
@@ -243,7 +244,7 @@ func (p *Program) handleDeleteCommand(args []string) command.Result {
 	}
 
 	// Find habit by name in database
-	habits := p.app.GetHabits()
+	habits := p.app.GetHabits(context.Background())
 	found := false
 	for _, h := range habits {
 		if h.Name == name {
@@ -258,7 +259,7 @@ func (p *Program) handleDeleteCommand(args []string) command.Result {
 	}
 
 	// Execute command
-	if err := p.app.DeleteHabit(habitID); err != nil {
+	if err := p.app.DeleteHabit(context.Background(), habitID); err != nil {
 		return command.Error(fmt.Sprintf("Error: %s", err))
 	}
 
@@ -279,7 +280,7 @@ func (p *Program) handleTrackUpCommand(args []string) command.Result {
 	}
 
 	// Find habit by name
-	habits := p.app.GetHabits()
+	habits := p.app.GetHabits(context.Background())
 	var habitID int
 	var habitType app.HabitType
 	found := false
@@ -310,7 +311,7 @@ func (p *Program) handleTrackUpCommand(args []string) command.Result {
 
 	// Execute command
 	selectedDate := p.calendar.GetSelectedDate()
-	if err := p.app.UpsertEntry(habitID, selectedDate, value); err != nil {
+	if err := p.app.UpsertEntry(context.Background(), habitID, selectedDate, value); err != nil {
 		return command.Error(fmt.Sprintf("Error: %s", err))
 	}
 
@@ -327,7 +328,7 @@ func (p *Program) handleTrackDownCommand(args []string) command.Result {
 	habitName := args[0]
 
 	// Find habit by name
-	habits := p.app.GetHabits()
+	habits := p.app.GetHabits(context.Background())
 	var habitID int
 	var habitType app.HabitType
 	found := false
@@ -354,7 +355,7 @@ func (p *Program) handleTrackDownCommand(args []string) command.Result {
 		value = 0
 	}
 
-	if err := p.app.UpsertEntry(habitID, selectedDate, value); err != nil {
+	if err := p.app.UpsertEntry(context.Background(), habitID, selectedDate, value); err != nil {
 		return command.Error(fmt.Sprintf("Error: %s", err))
 	}
 
@@ -403,7 +404,7 @@ func (p *Program) handleWriteCommand(args []string) command.Result {
 			}
 		}
 
-		createdHabits, err := p.app.CreateHabitsBulk(habitInputs)
+		createdHabits, err := p.app.CreateHabitsBulk(context.Background(), habitInputs)
 		if err != nil {
 			return nil, err
 		}
@@ -415,7 +416,7 @@ func (p *Program) handleWriteCommand(args []string) command.Result {
 
 		return ids, nil
 	}, func(habitID int, date time.Time, value float64) error {
-		return p.app.UpsertEntry(habitID, date, value)
+		return p.app.UpsertEntry(context.Background(), habitID, date, value)
 	}); err != nil {
 		return command.Error(fmt.Sprintf("Error: %s", err))
 	}
@@ -448,8 +449,8 @@ func (p *Program) reloadCalendar() {
 	pending := p.calendar.GetPendingHabits()
 
 	// Convert app habits to calendar habits
-	calendarHabits := make([]calendar.Habit, len(p.app.GetHabits()))
-	for i, h := range p.app.GetHabits() {
+	calendarHabits := make([]calendar.Habit, len(p.app.GetHabits(context.Background())))
+	for i, h := range p.app.GetHabits(context.Background()) {
 		calendarHabits[i] = calendar.Habit{
 			ID:      h.ID,
 			Name:    h.Name,
@@ -470,14 +471,14 @@ func (p *Program) reloadCalendar() {
 
 // syncEntriesToCalendar syncs entries from app to calendar
 func syncEntriesToCalendar(application *app.App, cal *calendar.Calendar, skipPending bool) {
-	for _, habit := range application.GetHabits() {
+	for _, habit := range application.GetHabits(context.Background()) {
 		// Get all entries (no date limit)
 		start := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 		end := time.Now().AddDate(10, 0, 0) // Far future
 
 		slog.Info("Attempt to get entries with", "start", start, "end", end)
 
-		entries, err := application.ListEntries(habit.ID, start, end)
+		entries, err := application.ListEntries(context.Background(), habit.ID, start, end)
 		if err != nil {
 			continue
 		}
@@ -511,7 +512,7 @@ func (p *Program) handleExportCommand(args []string) command.Result {
 	path := args[0]
 
 	// Export habits and entries
-	exportHabits, err := p.app.Export()
+	exportHabits, err := p.app.Export(context.Background())
 	if err != nil {
 		return command.Error(fmt.Sprintf("Error exporting data: %s", err))
 	}
