@@ -22,3 +22,6 @@ migrate-down:
 migrate-create:
 	@read -p "Enter migration name: " name && \
 	goose -dir migrations create "$$name" sql
+
+install: build
+	cp ./build/cmd ~/go/bin/habits
