@@ -38,7 +38,7 @@ func NewApp(dbPath string) (*App, error) {
 }
 
 func (a *App) Migrate() error {
-	return Migrate(a.Store.db, "migrations")
+	return Migrate(a.Store.db)
 }
 
 func (a *App) Export() ([]ExportHabit, error) {

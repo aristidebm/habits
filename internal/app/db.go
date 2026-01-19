@@ -2,11 +2,15 @@ package app
 
 import (
 	"database/sql"
+	"embed"
 	"fmt"
 
 	_ "github.com/mattn/go-sqlite3"
 	goose "github.com/pressly/goose/v3"
 )
+
+//go:embed migrations/*.sql
+var migrationsFS embed.FS
 
 func OpenDB(dbPath string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite3", dbPath)
@@ -21,12 +25,14 @@ func OpenDB(dbPath string) (*sql.DB, error) {
 	return db, nil
 }
 
-func Migrate(db *sql.DB, migrationsDir string) error {
+func Migrate(db *sql.DB) error {
 	if err := goose.SetDialect("sqlite3"); err != nil {
 		return fmt.Errorf("failed to set dialect: %w", err)
 	}
 
-	if err := goose.Up(db, migrationsDir); err != nil {
+	goose.SetBaseFS(migrationsFS)
+
+	if err := goose.Up(db, "migrations"); err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
