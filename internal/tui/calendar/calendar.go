@@ -495,8 +495,8 @@ func (c *Calendar) GetCellValue(habit Habit, date time.Time, viewMode ViewMode) 
 
 // getDefaultValueForView returns the default display value based on date and view mode
 func (c *Calendar) getDefaultValueForView(habit Habit, date time.Time, viewMode ViewMode) string {
-	today := time.Now()
-	if date.After(today) {
+	yesterday := time.Now().AddDate(0, 0, -1)
+	if date.After(yesterday) {
 		return c.getUntrackedSymbol(viewMode) // Future date
 	}
 	return c.getMissedSymbol(viewMode) // Past date with no entry (missed)
