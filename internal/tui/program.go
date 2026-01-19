@@ -37,7 +37,7 @@ func NewProgram(application *app.App) *Program {
 		}
 	}
 
-	cal := calendar.NewCalendar(calendarHabits)
+	cal := calendar.NewCalendar(calendarHabits, application.GetConfig())
 
 	// Sync entries (but not pending habits - they have no entries yet)
 	syncEntriesToCalendar(application, cal, true)
@@ -471,13 +471,13 @@ func (p *Program) reloadCalendar() {
 // syncEntriesToCalendar syncs entries from app to calendar
 func syncEntriesToCalendar(application *app.App, cal *calendar.Calendar, skipPending bool) {
 	for _, habit := range application.GetHabits() {
-		// Get entries for the past year
-		now := time.Now()
-		start := now.AddDate(-1, 0, 0)
+		// Get all entries (no date limit)
+		start := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+		end := time.Now().AddDate(10, 0, 0) // Far future
 
-		slog.Info("Attempt to get entries with", "start", start, "end", now)
+		slog.Info("Attempt to get entries with", "start", start, "end", end)
 
-		entries, err := application.ListEntries(habit.ID, start, now)
+		entries, err := application.ListEntries(habit.ID, start, end)
 		if err != nil {
 			continue
 		}

@@ -201,23 +201,27 @@ func (m *MonthlyView) getCompactCellValue(habit Habit, date time.Time) string {
 	entry, exists := m.calendar.GetEntry(habit.Name, date)
 
 	today := time.Now()
+	completedSymbol := m.calendar.getCompletedSymbol(ViewModeMonthly)
+	missedSymbol := m.calendar.getMissedSymbol(ViewModeMonthly)
+	untrackedSymbol := m.calendar.getUntrackedSymbol(ViewModeMonthly)
+
 	if date.After(today) {
-		return "◦"
+		return untrackedSymbol
 	}
 
 	if !exists {
-		return "◦"
+		return missedSymbol
 	}
 
 	switch habit.Type {
 	case HabitTypeBit:
 		if entry.Completed {
-			return "●"
+			return completedSymbol
 		}
-		return "◦"
+		return missedSymbol
 	case HabitTypeCount:
 		if entry.Value == "-" || entry.Value == "" {
-			return "◦"
+			return missedSymbol
 		}
 		// Show actual count value, truncate if too long
 		if len(entry.Value) > 3 {
@@ -226,7 +230,7 @@ func (m *MonthlyView) getCompactCellValue(habit Habit, date time.Time) string {
 		return entry.Value
 	case HabitTypeFloat:
 		if entry.Value == "-" || entry.Value == "" {
-			return "◦"
+			return missedSymbol
 		}
 		// Show actual float value, truncate if too long
 		if len(entry.Value) > 3 {
@@ -235,7 +239,7 @@ func (m *MonthlyView) getCompactCellValue(habit Habit, date time.Time) string {
 		return entry.Value
 	}
 
-	return "◦"
+	return missedSymbol
 }
 
 // getSelectedDateStats returns number of completed and remaining habits for selected date

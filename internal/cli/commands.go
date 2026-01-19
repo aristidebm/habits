@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"time"
 
@@ -75,10 +76,6 @@ func newDeleteCmd() *cobra.Command {
 			}
 			defer application.Close()
 
-			if err := application.Migrate(); err != nil {
-				return err
-			}
-
 			name := args[0]
 
 			habit, err := application.GetHabitByName(name)
@@ -91,6 +88,44 @@ func newDeleteCmd() *cobra.Command {
 			}
 
 			fmt.Printf("Deleted habit: %s\n", name)
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+// newEditCmd creates the edit command
+func newEditCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "edit",
+		Short: "Edit the configuration file",
+		Long:  `Open the configuration file in your preferred editor.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			configPath := app.ConfigPath()
+
+			// Ensure config exists
+			if _, err := app.LoadConfig(); err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
+
+			// Get editor from environment
+			editor := os.Getenv("EDITOR")
+			if editor == "" {
+				editor = "nano" // fallback editor
+			}
+
+			// Launch editor
+			editCmd := exec.Command(editor, configPath)
+			editCmd.Stdin = os.Stdin
+			editCmd.Stdout = os.Stdout
+			editCmd.Stderr = os.Stderr
+
+			if err := editCmd.Run(); err != nil {
+				return fmt.Errorf("failed to launch editor: %w", err)
+			}
+
+			fmt.Printf("Configuration saved to %s\n", configPath)
 			return nil
 		},
 	}
@@ -267,6 +302,53 @@ func newExportCmd() *cobra.Command {
 			}
 
 			fmt.Printf("Exported %d habits to %s\n", len(exportHabits), path)
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+// newWriteCmd creates the write command
+func newWriteCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "write",
+		Short: "Write all pending habits to database",
+		Long:  `This command is primarily used by the TUI. Use add/delete commands instead.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Println("The write command is primarily used by the TUI. Use add/delete commands instead.")
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+// newNextMonthCmd creates the next-month command
+func newNextMonthCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "next-month",
+		Short: "Navigate to next month (TUI only)",
+		Long:  `This command is only available in the TUI interface.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Println("The next-month command is only available in the TUI interface.")
+			fmt.Println("Run 'habits tui' to launch the interactive interface.")
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+// newPrevMonthCmd creates the prev-month command
+func newPrevMonthCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "prev-month",
+		Short: "Navigate to previous month (TUI only)",
+		Long:  `This command is only available in the TUI interface.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Println("The prev-month command is only available in the TUI interface.")
+			fmt.Println("Run 'habits tui' to launch the interactive interface.")
 			return nil
 		},
 	}

@@ -195,7 +195,7 @@ func (w *WeeklyView) RenderContent() string {
 
 		for i := 0; i < daysToShow; i++ {
 			date := w.calendar.viewStartDate.AddDate(0, 0, i)
-			cellValue := w.calendar.GetCellValue(habit, date)
+			cellValue := w.calendar.GetCellValue(habit, date, ViewModeWeekly)
 
 			isSelected := idx == w.calendar.selectedHabit &&
 				date.Year() == w.calendar.selectedDate.Year() &&

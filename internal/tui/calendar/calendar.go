@@ -7,6 +7,8 @@ import (
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"example.com/habits/internal/app"
 )
 
 // ViewMode represents different calendar view modes
@@ -15,7 +17,7 @@ type ViewMode int
 const (
 	ViewModeWeekly ViewMode = iota
 	ViewModeMonthly
-	// Future: ViewModeHeatmap, ViewModeYearly, etc.
+	ViewModeHeatmap
 )
 
 // HabitType represents the type of habit
@@ -62,6 +64,9 @@ type Calendar struct {
 	habits  []Habit
 	entries map[string]map[time.Time]HabitEntry // habitName -> date -> entry
 
+	// Configuration
+	config *app.Config
+
 	// State
 	viewMode      ViewMode
 	selectedDate  time.Time
@@ -78,10 +83,11 @@ type Calendar struct {
 	// View renderers
 	weeklyView  *WeeklyView
 	monthlyView *MonthlyView
+	heatmapView *HeatmapView
 }
 
 // NewCalendar creates a new calendar component
-func NewCalendar(habits []Habit) *Calendar {
+func NewCalendar(habits []Habit, config *app.Config) *Calendar {
 	now := time.Now()
 
 	// Month start
@@ -90,6 +96,7 @@ func NewCalendar(habits []Habit) *Calendar {
 	cal := &Calendar{
 		habits:        habits,
 		entries:       make(map[string]map[time.Time]HabitEntry),
+		config:        config,
 		viewMode:      ViewModeWeekly,
 		selectedDate:  now,
 		selectedHabit: 0,
@@ -104,6 +111,7 @@ func NewCalendar(habits []Habit) *Calendar {
 	// Initialize view renderers
 	cal.weeklyView = NewWeeklyView(cal)
 	cal.monthlyView = NewMonthlyView(cal)
+	cal.heatmapView = NewHeatmapView(cal)
 
 	// Initialize viewport
 	cal.viewport = viewport.New(80, 20)
@@ -125,7 +133,7 @@ func (c *Calendar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "tab":
 			// Cycle through view modes
-			c.viewMode = (c.viewMode + 1) % 2 // Currently just weekly and monthly
+			c.viewMode = (c.viewMode + 1) % 3 // Weekly, Monthly, Heatmap
 			c.updateViewportContent()
 
 		case "h", "left":
@@ -216,8 +224,8 @@ func (c *Calendar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (c *Calendar) updateViewportSize() {
 	// Reserve space for header (varies by view mode)
 	headerHeight := 6 // Default for weekly
-	if c.viewMode == ViewModeMonthly {
-		headerHeight = 3 // Monthly view has less header
+	if c.viewMode == ViewModeMonthly || c.viewMode == ViewModeHeatmap {
+		headerHeight = 3 // Monthly and heatmap views have less header
 	}
 
 	viewportHeight := c.height - headerHeight
@@ -244,10 +252,13 @@ func (c *Calendar) updateViewportContent() {
 	}
 
 	var content string
-	if c.viewMode == ViewModeWeekly {
+	switch c.viewMode {
+	case ViewModeWeekly:
 		content = c.weeklyView.RenderContent()
-	} else {
+	case ViewModeMonthly:
 		content = c.monthlyView.RenderContent()
+	case ViewModeHeatmap:
+		content = c.heatmapView.RenderContent()
 	}
 
 	c.viewport.SetContent(content)
@@ -261,11 +272,12 @@ func (c *Calendar) scrollToSelectedHabit() {
 
 	var selectedY, itemHeight int
 
-	if c.viewMode == ViewModeWeekly {
-		// In weekly view, each habit is one line
+	switch c.viewMode {
+	case ViewModeWeekly, ViewModeHeatmap:
+		// In weekly and heatmap views, each habit is one line
 		itemHeight = 1
 		selectedY = c.selectedHabit * itemHeight
-	} else {
+	case ViewModeMonthly:
 		// In monthly view, calculate based on card layout
 		cardWidth := 7*4 + 4
 		cardsPerRow := c.width / cardWidth
@@ -412,10 +424,13 @@ func (c *Calendar) View() string {
 	}
 
 	var header string
-	if c.viewMode == ViewModeWeekly {
+	switch c.viewMode {
+	case ViewModeWeekly:
 		header = c.weeklyView.RenderHeader()
-	} else {
+	case ViewModeMonthly:
 		header = c.monthlyView.RenderHeader()
+	case ViewModeHeatmap:
+		header = c.heatmapView.RenderHeader()
 	}
 
 	return header + "\n" + c.viewport.View()
@@ -450,38 +465,97 @@ func (c *Calendar) GetEntry(habitName string, date time.Time) (HabitEntry, bool)
 	return entry, exists
 }
 
-// GetCellValue returns the display value for a habit on a specific date
-func (c *Calendar) GetCellValue(habit Habit, date time.Time) string {
+// GetCellValue returns the display value for a habit on a specific date for the given view mode
+func (c *Calendar) GetCellValue(habit Habit, date time.Time, viewMode ViewMode) string {
 	entry, exists := c.GetEntry(habit.Name, date)
 	if !exists {
-		return c.getDefaultValue(habit, date)
+		return c.getDefaultValueForView(habit, date, viewMode)
 	}
 
 	slog.Info("", "Habit", habit.Name, "entry", entry.Value, "Date", entry.Date, "Completed", entry.Completed)
 
+	completedSymbol := c.getCompletedSymbol(viewMode)
+	missedSymbol := c.getMissedSymbol(viewMode)
+
 	switch habit.Type {
 	case HabitTypeBit:
 		if entry.Completed {
-			return "✓"
+			return completedSymbol
 		}
-		return "-"
+		return missedSymbol
 	case HabitTypeCount, HabitTypeFloat:
-		if entry.Value == "-" {
-			return "-"
+		if entry.Value == "-" || entry.Value == "" || entry.Value == "0" {
+			return missedSymbol // No value = not completed
 		}
-		return entry.Value
+		return completedSymbol // Has value = completed
 	}
 
 	return "?"
+}
+
+// getDefaultValueForView returns the default display value based on date and view mode
+func (c *Calendar) getDefaultValueForView(habit Habit, date time.Time, viewMode ViewMode) string {
+	today := time.Now()
+	if date.After(today) {
+		return c.getUntrackedSymbol(viewMode) // Future date
+	}
+	return c.getMissedSymbol(viewMode) // Past date with no entry (missed)
+}
+
+// GetCellValue returns the display value for a habit on a specific date (legacy method for weekly view)
+func (c *Calendar) GetCellValueWeekly(habit Habit, date time.Time) string {
+	return c.GetCellValue(habit, date, ViewModeWeekly)
 }
 
 // getDefaultValue returns the default display value based on date
 func (c *Calendar) getDefaultValue(habit Habit, date time.Time) string {
 	today := time.Now()
 	if date.After(today) {
-		return "?"
+		return c.config.Views.Weekly.Untracked // Future date
 	}
-	return "-"
+	return c.config.Views.Weekly.Missed // Past date with no entry (missed)
+}
+
+// getCompletedSymbol returns the completed symbol for the given view mode
+func (c *Calendar) getCompletedSymbol(viewMode ViewMode) string {
+	switch viewMode {
+	case ViewModeWeekly:
+		return c.config.Views.Weekly.Completed
+	case ViewModeMonthly:
+		return c.config.Views.Monthly.Completed
+	case ViewModeHeatmap:
+		return c.config.Views.Heatmap.Completed
+	default:
+		return "●"
+	}
+}
+
+// getMissedSymbol returns the missed symbol for the given view mode
+func (c *Calendar) getMissedSymbol(viewMode ViewMode) string {
+	switch viewMode {
+	case ViewModeWeekly:
+		return c.config.Views.Weekly.Missed
+	case ViewModeMonthly:
+		return c.config.Views.Monthly.Missed
+	case ViewModeHeatmap:
+		return c.config.Views.Heatmap.Missed
+	default:
+		return "○"
+	}
+}
+
+// getUntrackedSymbol returns the untracked symbol for the given view mode
+func (c *Calendar) getUntrackedSymbol(viewMode ViewMode) string {
+	switch viewMode {
+	case ViewModeWeekly:
+		return c.config.Views.Weekly.Untracked
+	case ViewModeMonthly:
+		return c.config.Views.Monthly.Untracked
+	case ViewModeHeatmap:
+		return c.config.Views.Heatmap.Untracked
+	default:
+		return "·"
+	}
 }
 
 // Resize updates the component dimensions

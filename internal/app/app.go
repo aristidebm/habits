@@ -2,23 +2,38 @@ package app
 
 import (
 	"fmt"
+	"os"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	_ "github.com/pressly/goose/v3"
 )
 
 type App struct {
 	*Store
+	config *Config
 }
 
 func NewApp(dbPath string) (*App, error) {
+	// Load configuration
+	config, err := LoadConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Use config database path if no explicit path provided
+	if dbPath == "" {
+		dbPath = config.DB.Path
+	}
+
 	db, err := OpenDB(dbPath)
 	if err != nil {
 		return nil, err
 	}
 
 	return &App{
-		Store: &Store{db: db},
+		Store:  &Store{db: db},
+		config: config,
 	}, nil
 }
 
@@ -80,6 +95,57 @@ func (a *App) Export() ([]ExportHabit, error) {
 	}
 
 	return exportHabits, nil
+}
+
+// GetConfig returns the application configuration
+func (a *App) GetConfig() *Config {
+	return a.config
+}
+
+// LoadConfig loads the configuration from file
+func LoadConfig() (*Config, error) {
+	config := DefaultConfig()
+
+	configPath := ConfigPath()
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		// Config file doesn't exist, create with defaults
+		if err := EnsureConfigDir(); err != nil {
+			return nil, fmt.Errorf("failed to create config directory: %w", err)
+		}
+		if err := SaveConfig(config); err != nil {
+			return nil, fmt.Errorf("failed to save default config: %w", err)
+		}
+		return config, nil
+	}
+
+	// Load existing config
+	_, err := toml.DecodeFile(configPath, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode config file: %w", err)
+	}
+
+	return config, nil
+}
+
+// SaveConfig saves the configuration to file
+func SaveConfig(config *Config) error {
+	if err := EnsureConfigDir(); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	configPath := ConfigPath()
+	file, err := os.Create(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to create config file: %w", err)
+	}
+	defer file.Close()
+
+	encoder := toml.NewEncoder(file)
+	if err := encoder.Encode(config); err != nil {
+		return fmt.Errorf("failed to encode config: %w", err)
+	}
+
+	return nil
 }
 
 func (a *App) Close() error {
