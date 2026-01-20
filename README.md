@@ -72,6 +72,13 @@ The application creates configuration files automatically on first run:
 
 ## Usage
 
+### Demo
+
+<video controls width="100%">
+  <source src="demo.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
 ### Navigation
 - `Tab` - Switch between weekly/monthly views
 - `HJKL` / Arrow keys - Navigate dates and habits
