@@ -78,6 +78,13 @@ func (p *Program) registerCommands() {
 	})
 
 	p.commandLine.RegisterCommand(command.Command{
+		Name:        "rename",
+		Description: "Rename a habit",
+		Usage:       "rename <old_name> <new_name>",
+		Handler:     p.handleRenameCommand,
+	})
+
+	p.commandLine.RegisterCommand(command.Command{
 		Name:        "track-up",
 		Description: "Mark habit as done or increment value",
 		Usage:       "track-up <habit> [value]",
@@ -285,6 +292,51 @@ func (p *Program) handleDeleteCommand(args []string) command.Result {
 
 	p.reloadCalendar()
 	return command.Success(fmt.Sprintf("Deleted habit: %s", name))
+}
+
+func (p *Program) handleRenameCommand(args []string) command.Result {
+	// Validate arguments
+	if len(args) < 2 {
+		return command.Error("Usage: rename <old_name> <new_name>")
+	}
+
+	oldName := args[0]
+	newName := args[1]
+
+	// Find habit by old name
+	habits := p.app.GetHabits(context.Background())
+	var habitID int
+	var habitType app.HabitType
+	var goal float64
+	found := false
+	for _, h := range habits {
+		if h.Name == oldName {
+			habitID = h.ID
+			habitType = h.Type
+			goal = h.Goal
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return command.Error(fmt.Sprintf("Habit '%s' not found", oldName))
+	}
+
+	// Check if new name already exists
+	for _, h := range habits {
+		if h.Name == newName {
+			return command.Error(fmt.Sprintf("Habit '%s' already exists", newName))
+		}
+	}
+
+	// Rename the habit
+	if err := p.app.UpdateHabit(context.Background(), habitID, newName, habitType, goal); err != nil {
+		return command.Error(fmt.Sprintf("Error: %s", err))
+	}
+
+	p.reloadCalendar()
+	return command.Success(fmt.Sprintf("Renamed habit: %s -> %s", oldName, newName))
 }
 
 func (p *Program) handleTrackUpCommand(args []string) command.Result {

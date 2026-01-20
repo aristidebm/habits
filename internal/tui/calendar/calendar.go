@@ -749,7 +749,7 @@ func (c *Calendar) WritePendingHabits(createHabitsBulk func(habits []struct {
 			}{
 				Name:      h.Name,
 				HabitType: h.Type.String(),
-				Goal:      0,
+				Goal:      h.Goal,
 			}
 		}
 

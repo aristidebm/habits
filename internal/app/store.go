@@ -144,6 +144,17 @@ func (s *Store) GetHabitByName(ctx context.Context, name string) (*Habit, error)
 	return h, nil
 }
 
+func (s *Store) UpdateHabit(ctx context.Context, id int, name string, habitType HabitType, goal float64) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE habits SET name = ?, kind = ?, goal = ? WHERE id = ?",
+		name, habitType.String(), goal, id,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update habit: %w", err)
+	}
+	return nil
+}
+
 func (s *Store) ListHabits(ctx context.Context) ([]Habit, error) {
 	rows, err := s.db.QueryContext(ctx, "SELECT id, name, kind, goal, created_at FROM habits ORDER BY id")
 	if err != nil {

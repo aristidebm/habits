@@ -26,6 +26,7 @@ func NewRootCmd() *cobra.Command {
 	cmd.AddCommand(newTUICmd())
 	cmd.AddCommand(newAddCmd())
 	cmd.AddCommand(newDeleteCmd())
+	cmd.AddCommand(newRenameCmd())
 	cmd.AddCommand(newTrackUpCmd())
 	cmd.AddCommand(newTrackDownCmd())
 	cmd.AddCommand(newExportCmd())

@@ -72,6 +72,46 @@ func newAddCmd() *cobra.Command {
 	return cmd
 }
 
+// newRenameCmd creates the rename command
+func newRenameCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "rename <old_name> <new_name>",
+		Short: "Rename a habit",
+		Long:  `Rename an existing habit to a new name.`,
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dbPath, _ := cmd.Flags().GetString("db")
+
+			application, err := app.NewApp(dbPath)
+			if err != nil {
+				return err
+			}
+			defer application.Close()
+
+			if err := application.Migrate(); err != nil {
+				return err
+			}
+
+			oldName := args[0]
+			newName := args[1]
+
+			habit, err := application.GetHabitByName(context.Background(), oldName)
+			if err != nil {
+				return fmt.Errorf("habit '%s' not found: %w", oldName, err)
+			}
+
+			if err := application.UpdateHabit(context.Background(), habit.ID, newName, habit.Type, habit.Goal); err != nil {
+				return fmt.Errorf("failed to rename habit: %w", err)
+			}
+
+			fmt.Printf("Renamed habit: %s -> %s\n", oldName, newName)
+			return nil
+		},
+	}
+
+	return cmd
+}
+
 // newDeleteCmd creates the delete command
 func newDeleteCmd() *cobra.Command {
 	cmd := &cobra.Command{
