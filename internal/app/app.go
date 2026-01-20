@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
@@ -24,6 +25,7 @@ func NewApp(dbPath string) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
+	slog.Info("Configuration loaded", "db_path", config.DB.Path, "theme", config.Theme.Name)
 
 	// Use config database path if no explicit path provided
 	if dbPath == "" {

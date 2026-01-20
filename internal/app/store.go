@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -27,6 +28,7 @@ func (s *Store) CreateHabit(ctx context.Context, name string, habitType HabitTyp
 		return nil, fmt.Errorf("failed to get habit id: %w", err)
 	}
 
+	slog.Info("Created new habit", "id", id, "name", name, "type", habitType.String(), "goal", goal)
 	return s.GetHabit(ctx, int(id))
 }
 
@@ -195,6 +197,7 @@ func (s *Store) UpsertEntry(ctx context.Context, habitID int, date time.Time, va
 	if err != nil {
 		return fmt.Errorf("failed to upsert entry: %w", err)
 	}
+	slog.Debug("Upserted habit entry", "habit_id", habitID, "date", dateStr, "value", value)
 	return nil
 }
 
@@ -319,6 +322,7 @@ func (s *Store) UpsertNote(ctx context.Context, habitEntryID int, note string) e
 	if err != nil {
 		return fmt.Errorf("failed to upsert note: %w", err)
 	}
+	slog.Debug("Upserted note", "habit_entry_id", habitEntryID, "note_length", len(note))
 	return nil
 }
 

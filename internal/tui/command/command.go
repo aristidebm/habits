@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -190,6 +191,8 @@ func (c *CommandLine) executeCommand() tea.Cmd {
 		args = parts[1:]
 	}
 
+	slog.Info("Executing command", "command", cmdName, "args", args)
+
 	// Find command
 	cmd, exists := c.commands[cmdName]
 	if !exists {
@@ -206,12 +209,15 @@ func (c *CommandLine) executeCommand() tea.Cmd {
 	// Handle result
 	switch result.Type {
 	case ResultSuccess:
+		slog.Info("Command succeeded", "message", result.Message)
 		c.lastSuccess = result.Message
 		c.lastError = ""
 	case ResultError:
+		slog.Error("Command failed", "error", result.Message)
 		c.lastError = result.Message
 		c.lastSuccess = ""
 	case ResultQuit:
+		slog.Info("Command requested quit")
 		// Clear messages before quitting
 		c.lastSuccess = ""
 		c.lastError = ""

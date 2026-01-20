@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strconv"
@@ -213,6 +214,7 @@ func (p *Program) registerCommands() {
 
 // Init initializes the program
 func (p *Program) Init() tea.Cmd {
+	slog.Info("Habits app initialized", "theme", p.app.GetConfig().Theme.Name)
 	return nil
 }
 
@@ -231,6 +233,7 @@ func (p *Program) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return p, p.commandLine.Show()
 		case "q":
 			if !p.commandLine.IsVisible() {
+				slog.Info("User quit the application")
 				return p, tea.Quit
 			}
 		case "e":

@@ -2,6 +2,7 @@ package calendar
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -154,14 +155,29 @@ func (c *Calendar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "tab":
 			// Cycle through view modes
+			oldMode := c.viewMode
 			c.viewMode = (c.viewMode + 1) % 2 // Weekly, Monthly
+			var oldName, newName string
+			if oldMode == ViewModeWeekly {
+				oldName = "weekly"
+			} else {
+				oldName = "monthly"
+			}
+			if c.viewMode == ViewModeWeekly {
+				newName = "weekly"
+			} else {
+				newName = "monthly"
+			}
+			slog.Info("Switched view mode", "from", oldName, "to", newName)
 			c.updateViewportContent()
 
 		case "h", "left":
+			slog.Debug("Navigating left")
 			c.handleLeftNavigation()
 			c.updateViewportContent()
 
 		case "l", "right":
+			slog.Debug("Navigating right")
 			c.handleRightNavigation()
 			c.updateViewportContent()
 
@@ -177,6 +193,7 @@ func (c *Calendar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Move to next habit (both weekly and monthly)
 			if c.selectedHabit < len(c.habits)-1 {
 				c.selectedHabit++
+				slog.Debug("Selected next habit", "habit_index", c.selectedHabit)
 				c.scrollToSelectedHabit()
 				c.updateViewportContent()
 			}
@@ -185,6 +202,7 @@ func (c *Calendar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Move to previous habit (both weekly and monthly)
 			if c.selectedHabit > 0 {
 				c.selectedHabit--
+				slog.Debug("Selected previous habit", "habit_index", c.selectedHabit)
 				c.scrollToSelectedHabit()
 				c.updateViewportContent()
 			}
@@ -333,12 +351,16 @@ func (c *Calendar) handleLeftNavigation() {
 	switch c.viewMode {
 	case ViewModeWeekly:
 		// Move to previous day
+		oldDate := c.selectedDate
 		c.selectedDate = c.selectedDate.AddDate(0, 0, -1)
+		slog.Debug("Moved to previous day", "from", oldDate.Format("2006-01-02"), "to", c.selectedDate.Format("2006-01-02"))
 		c.adjustWeeklyViewToSelection()
 
 	case ViewModeMonthly:
 		// Move to previous day
+		oldDate := c.selectedDate
 		c.selectedDate = c.selectedDate.AddDate(0, 0, -1)
+		slog.Debug("Moved to previous day", "from", oldDate.Format("2006-01-02"), "to", c.selectedDate.Format("2006-01-02"))
 		// Adjust month view if we moved to previous month
 		if c.selectedDate.Month() != c.viewMonth.Month() || c.selectedDate.Year() != c.viewMonth.Year() {
 			c.viewMonth = time.Date(c.selectedDate.Year(), c.selectedDate.Month(), 1, 0, 0, 0, 0, time.UTC)
@@ -351,12 +373,16 @@ func (c *Calendar) handleRightNavigation() {
 	switch c.viewMode {
 	case ViewModeWeekly:
 		// Move to next day
+		oldDate := c.selectedDate
 		c.selectedDate = c.selectedDate.AddDate(0, 0, 1)
+		slog.Debug("Moved to next day", "from", oldDate.Format("2006-01-02"), "to", c.selectedDate.Format("2006-01-02"))
 		c.adjustWeeklyViewToSelection()
 
 	case ViewModeMonthly:
 		// Move to next day
+		oldDate := c.selectedDate
 		c.selectedDate = c.selectedDate.AddDate(0, 0, 1)
+		slog.Debug("Moved to next day", "from", oldDate.Format("2006-01-02"), "to", c.selectedDate.Format("2006-01-02"))
 		// Adjust month view if we moved to next month
 		if c.selectedDate.Month() != c.viewMonth.Month() || c.selectedDate.Year() != c.viewMonth.Year() {
 			c.viewMonth = time.Date(c.selectedDate.Year(), c.selectedDate.Month(), 1, 0, 0, 0, 0, time.UTC)
