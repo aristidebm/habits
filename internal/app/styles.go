@@ -33,7 +33,6 @@ type Styles struct {
 	// View-specific styles
 	Weekly  *WeeklyStyles
 	Monthly *MonthlyStyles
-	Heatmap *HeatmapStyles
 }
 
 // NewStyles creates themed styles from a theme
@@ -91,7 +90,6 @@ func NewStyles(theme *Theme) *Styles {
 	// View-specific styles
 	s.Weekly = NewWeeklyStyles(theme)
 	s.Monthly = NewMonthlyStyles(theme)
-	s.Heatmap = NewHeatmapStyles(theme)
 
 	return s
 }
@@ -130,6 +128,7 @@ func NewWeeklyStyles(theme *Theme) *WeeklyStyles {
 			Width(8),
 
 		NoteCell: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Colors.NoteFG)).
 			Align(lipgloss.Center).
 			Width(8).
 			Background(lipgloss.Color(theme.Colors.NoteBG)),
@@ -184,15 +183,16 @@ func NewMonthlyStyles(theme *Theme) *MonthlyStyles {
 
 		SelectedHabit: lipgloss.NewStyle().
 			Foreground(lipgloss.Color(theme.Colors.HabitSelectedFG)).
+			Background(lipgloss.Color(theme.Colors.HabitSelectedBG)).
+			Width(20).
 			Align(lipgloss.Left),
 
 		Cell: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Colors.HabitSelectedFG)).
 			Align(lipgloss.Center).
 			Width(4),
 
 		NoteCell: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Colors.HabitSelectedFG)).
+			Foreground(lipgloss.Color(theme.Colors.NoteFG)).
 			Align(lipgloss.Center).
 			Width(4).
 			Background(lipgloss.Color(theme.Colors.NoteBG)),
@@ -204,62 +204,14 @@ func NewMonthlyStyles(theme *Theme) *MonthlyStyles {
 			Width(4),
 
 		Empty: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#888888")).
+			Foreground(lipgloss.Color(theme.Colors.Empty)).
 			Align(lipgloss.Center).
 			Width(4),
 
-		Card: lipgloss.NewStyle(),
+		Card: lipgloss.NewStyle().
+			Padding(1, 1),
 
 		Footer: lipgloss.NewStyle().
 			Foreground(lipgloss.Color(theme.Colors.HabitName)),
-	}
-}
-
-// HeatmapStyles contains styles specific to the heatmap view
-type HeatmapStyles struct {
-	Header        lipgloss.Style
-	HabitName     lipgloss.Style
-	SelectedHabit lipgloss.Style
-	Completed     lipgloss.Style
-	Missed        lipgloss.Style
-	Note          lipgloss.Style
-	Future        lipgloss.Style
-	DayLabel      lipgloss.Style
-}
-
-// NewHeatmapStyles creates heatmap view styles
-func NewHeatmapStyles(theme *Theme) *HeatmapStyles {
-	return &HeatmapStyles{
-		Header: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Colors.Header)),
-
-		HabitName: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Colors.HabitName)).
-			Width(20).
-			Align(lipgloss.Left),
-
-		SelectedHabit: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Colors.HabitSelectedFG)).
-			Background(lipgloss.Color(theme.Colors.HabitSelectedBG)).
-			Width(20).
-			Align(lipgloss.Left),
-
-		Completed: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Colors.Completed)).
-			Bold(true),
-
-		Missed: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Colors.Missed)),
-
-		Note: lipgloss.NewStyle().
-			Background(lipgloss.Color(theme.Colors.NoteBG)),
-
-		Future: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Colors.Untracked)),
-
-		DayLabel: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Colors.DBPath)).
-			Align(lipgloss.Center).
-			Width(2),
 	}
 }

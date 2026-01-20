@@ -296,7 +296,21 @@ func (p *Program) View() string {
 
 	// Database path line (like Vim's file path)
 	dbPath := p.app.Datasource
-	view.WriteString(p.app.GetStyles().DBPath.Render(dbPath))
+	dbPathLine := p.app.GetStyles().DBPath.Render(dbPath)
+
+	// Add selected date on right side for monthly view
+	if p.calendar.GetViewMode() == calendar.ViewModeMonthly {
+		dateStr := p.app.GetStyles().DBPath.Render(p.calendar.GetSelectedDate().Format("02/Jan/06"))
+		spacingLen := p.width - len(dbPath) - len(p.calendar.GetSelectedDate().Format("02/Jan/06")) - 2
+		if spacingLen > 0 {
+			spacing := strings.Repeat(" ", spacingLen)
+			dbPathLine = lipgloss.JoinHorizontal(lipgloss.Left, dbPathLine, spacing, dateStr)
+		} else {
+			dbPathLine = lipgloss.JoinHorizontal(lipgloss.Left, dbPathLine, "  ", dateStr)
+		}
+	}
+
+	view.WriteString(dbPathLine)
 	view.WriteString("\n")
 
 	// Render command line or status

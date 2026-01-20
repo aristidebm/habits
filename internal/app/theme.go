@@ -21,10 +21,12 @@ type ThemeColors struct {
 	Untracked       string `toml:"untracked"`
 	Today           string `toml:"today"`
 	NoteBG          string `toml:"note_bg"`
+	NoteFG          string `toml:"note_fg"`
 	DBPath          string `toml:"db_path"`
 	Prompt          string `toml:"prompt"`
 	Error           string `toml:"error"`
 	Success         string `toml:"success"`
+	Empty           string `toml:"empty"`
 }
 
 // Theme represents a complete theme configuration
@@ -123,10 +125,12 @@ func (tm *ThemeManager) getBuiltInTheme(name string) *Theme {
 				Untracked:       "#708090", // Slate gray
 				Today:           "#32CD32", // Lime green
 				NoteBG:          "#2F4F4F", // Dark slate gray
+				NoteFG:          "#FFFFFF", // White
 				DBPath:          "#708090", // Slate gray
 				Prompt:          "#87CEEB", // Sky blue
 				Error:           "#DC143C", // Crimson
 				Success:         "#32CD32", // Lime green
+				Empty:           "#FFFFFF", // White
 			},
 		}
 	case "dark":
@@ -143,10 +147,12 @@ func (tm *ThemeManager) getBuiltInTheme(name string) *Theme {
 				Untracked:       "#778899", // Light slate gray
 				Today:           "#45B7D1", // Sky blue
 				NoteBG:          "#2F4F4F", // Dark slate gray
+				NoteFG:          "#FFFFFF", // White
 				DBPath:          "#778899", // Light slate gray
 				Prompt:          "#FF6B6B", // Coral red
 				Error:           "#FFA07A", // Light salmon
 				Success:         "#45B7D1", // Sky blue
+				Empty:           "#FFFFFF", // White
 			},
 		}
 	case "light":
@@ -163,10 +169,12 @@ func (tm *ThemeManager) getBuiltInTheme(name string) *Theme {
 				Untracked:       "#A0A0A0", // Dark gray
 				Today:           "#F18F01", // Orange
 				NoteBG:          "#E8E8E8", // Light gray
+				NoteFG:          "#000000", // Black
 				DBPath:          "#A0A0A0", // Dark gray
 				Prompt:          "#2E86AB", // Steel blue
 				Error:           "#C73E1D", // Firebrick
 				Success:         "#F18F01", // Orange
+				Empty:           "#000000", // Black
 			},
 		}
 	case "mono":
@@ -174,19 +182,21 @@ func (tm *ThemeManager) getBuiltInTheme(name string) *Theme {
 			Name:   "Monochrome",
 			Author: "Habits Team",
 			Colors: ThemeColors{
-				Header:          "#FFFFFF", // White
-				HabitName:       "#FFFFFF", // White
+				Header:          "#F8F8F2", // Light gray (almost white)
+				HabitName:       "#F8F8F2", // Light gray (almost white)
 				HabitSelectedFG: "#000000", // Black (for contrast on selected)
-				HabitSelectedBG: "#FFFFFF", // White background for selected
-				Completed:       "#FFFFFF", // White
-				Missed:          "#FFFFFF", // White
-				Untracked:       "#FFFFFF", // White
-				Today:           "#FFFFFF", // White
-				NoteBG:          "#000000", // Black for note cells only
-				DBPath:          "#FFFFFF", // White
-				Prompt:          "#FFFFFF", // White
-				Error:           "#FFFFFF", // White
-				Success:         "#FFFFFF", // White
+				HabitSelectedBG: "#F8F8F2", // Light gray background for selected
+				Completed:       "#F8F8F2", // Light gray (almost white)
+				Missed:          "#F8F8F2", // Light gray (almost white)
+				Untracked:       "#F8F8F2", // Light gray (almost white)
+				Today:           "#F8F8F2", // Light gray (almost white)
+				NoteBG:          "#44475A", // Dark gray for note cells only
+				NoteFG:          "#F8F8F2", // Light gray
+				DBPath:          "#F8F8F2", // Light gray (almost white)
+				Prompt:          "#F8F8F2", // Light gray (almost white)
+				Error:           "#F8F8F2", // Light gray (almost white)
+				Success:         "#F8F8F2", // Light gray (almost white)
+				Empty:           "#F8F8F2", // Light gray
 			},
 		}
 	default:

@@ -21,7 +21,6 @@ type DBConfig struct {
 type ViewsConfig struct {
 	Weekly  ViewConfig `toml:"weekly"`
 	Monthly ViewConfig `toml:"monthly"`
-	Heatmap ViewConfig `toml:"heatmap"`
 }
 
 // ViewConfig represents configuration for a specific view
@@ -44,19 +43,14 @@ func DefaultConfig() *Config {
 		},
 		Views: ViewsConfig{
 			Weekly: ViewConfig{
-				Missed:    "○",
-				Completed: "●",
-				Untracked: "✗",
+				Missed:    "⛌",
+				Completed: "🗸",
+				Untracked: "○",
 			},
 			Monthly: ViewConfig{
-				Missed:    "○",
-				Completed: "●",
-				Untracked: "◦",
-			},
-			Heatmap: ViewConfig{
-				Missed:    "○",
-				Completed: "●",
-				Untracked: "✗",
+				Missed:    "⛌",
+				Completed: "🗸",
+				Untracked: "○",
 			},
 		},
 		Theme: ThemeConfig{

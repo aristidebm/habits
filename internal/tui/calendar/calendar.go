@@ -17,7 +17,6 @@ type ViewMode int
 const (
 	ViewModeWeekly ViewMode = iota
 	ViewModeMonthly
-	ViewModeHeatmap
 )
 
 // HabitType represents the type of habit
@@ -104,7 +103,6 @@ type Calendar struct {
 	// View renderers
 	weeklyView  *WeeklyView
 	monthlyView *MonthlyView
-	heatmapView *HeatmapView
 }
 
 // NewCalendar creates a new calendar component
@@ -136,7 +134,6 @@ func NewCalendar(habits []Habit, config *app.Config, styles *app.Styles, hasNote
 	// Initialize view renderers
 	cal.weeklyView = NewWeeklyView(cal, styles.Weekly)
 	cal.monthlyView = NewMonthlyView(cal, styles.Monthly)
-	cal.heatmapView = NewHeatmapView(cal, styles.Heatmap)
 
 	// Initialize viewport
 	cal.viewport = viewport.New(80, 20)
@@ -158,7 +155,7 @@ func (c *Calendar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "tab":
 			// Cycle through view modes
-			c.viewMode = (c.viewMode + 1) % 3 // Weekly, Monthly, Heatmap
+			c.viewMode = (c.viewMode + 1) % 2 // Weekly, Monthly
 			c.updateViewportContent()
 
 		case "h", "left":
@@ -249,8 +246,8 @@ func (c *Calendar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (c *Calendar) updateViewportSize() {
 	// Reserve space for header (varies by view mode)
 	headerHeight := 6 // Default for weekly
-	if c.viewMode == ViewModeMonthly || c.viewMode == ViewModeHeatmap {
-		headerHeight = 3 // Monthly and heatmap views have less header
+	if c.viewMode == ViewModeMonthly {
+		headerHeight = 3 // Monthly view has less header
 	}
 
 	viewportHeight := c.height - headerHeight
@@ -282,12 +279,6 @@ func (c *Calendar) updateViewportContent() {
 		content = c.weeklyView.RenderContent()
 	case ViewModeMonthly:
 		content = c.monthlyView.RenderContent()
-	case ViewModeHeatmap:
-		if c.heatmapView != nil {
-			content = c.heatmapView.RenderContent()
-		} else {
-			content = "Heatmap view not available"
-		}
 	}
 
 	c.viewport.SetContent(content)
@@ -302,8 +293,8 @@ func (c *Calendar) scrollToSelectedHabit() {
 	var selectedY, itemHeight int
 
 	switch c.viewMode {
-	case ViewModeWeekly, ViewModeHeatmap:
-		// In weekly and heatmap views, each habit is one line
+	case ViewModeWeekly:
+		// In weekly view, each habit is one line
 		itemHeight = 1
 		selectedY = c.selectedHabit * itemHeight
 	case ViewModeMonthly:
@@ -458,15 +449,14 @@ func (c *Calendar) View() string {
 		header = c.weeklyView.RenderHeader()
 	case ViewModeMonthly:
 		header = c.monthlyView.RenderHeader()
-	case ViewModeHeatmap:
-		if c.heatmapView != nil {
-			header = c.heatmapView.RenderHeader()
-		} else {
-			header = "Heatmap View"
-		}
 	}
 
 	return header + "\n" + c.viewport.View()
+}
+
+// GetViewMode returns the current view mode
+func (c *Calendar) GetViewMode() ViewMode {
+	return c.viewMode
 }
 
 // SetEntry sets an entry for a habit on a specific date
@@ -583,8 +573,6 @@ func (c *Calendar) getCompletedSymbol(viewMode ViewMode) string {
 		return c.config.Views.Weekly.Completed
 	case ViewModeMonthly:
 		return c.config.Views.Monthly.Completed
-	case ViewModeHeatmap:
-		return c.config.Views.Heatmap.Completed
 	default:
 		return "●"
 	}
@@ -597,8 +585,6 @@ func (c *Calendar) getMissedSymbol(viewMode ViewMode) string {
 		return c.config.Views.Weekly.Missed
 	case ViewModeMonthly:
 		return c.config.Views.Monthly.Missed
-	case ViewModeHeatmap:
-		return c.config.Views.Heatmap.Missed
 	default:
 		return "○"
 	}
@@ -611,8 +597,6 @@ func (c *Calendar) getUntrackedSymbol(viewMode ViewMode) string {
 		return c.config.Views.Weekly.Untracked
 	case ViewModeMonthly:
 		return c.config.Views.Monthly.Untracked
-	case ViewModeHeatmap:
-		return c.config.Views.Heatmap.Untracked
 	default:
 		return "·"
 	}

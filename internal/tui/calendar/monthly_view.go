@@ -67,26 +67,6 @@ func (m *MonthlyView) RenderContent() string {
 		sb.WriteString(row + "\n\n")
 	}
 
-	// Footer with selected date's summary
-	completed, remaining := m.getSelectedDateStats()
-	footer := fmt.Sprintf("Selected: %d completed, %d remaining --%s--",
-		completed, remaining, m.calendar.selectedDate.Format("DAY"))
-	dateStr := m.calendar.selectedDate.Format("02/Jan/06")
-
-	spacingLen := m.calendar.width - len(footer) - len(dateStr) - 4
-	if spacingLen < 0 {
-		spacingLen = 0
-	}
-
-	footerLine := lipgloss.JoinHorizontal(
-		lipgloss.Center,
-		m.styles.Footer.Render(footer),
-		strings.Repeat(" ", spacingLen),
-		m.styles.Footer.Render(dateStr),
-	)
-
-	sb.WriteString(footerLine)
-
 	return sb.String()
 }
 
@@ -126,7 +106,7 @@ func (m *MonthlyView) renderHabitCard(habit Habit, isSelected bool) string {
 		for day := 0; day < 7; day++ {
 			if (week == 0 && day < weekday) || currentDay > daysInMonth {
 				// Empty cell
-				weekRow += m.styles.Empty.Render("◦")
+				weekRow += m.styles.Empty.Render(m.calendar.getUntrackedSymbol(ViewModeMonthly))
 			} else {
 				date := time.Date(m.calendar.viewMonth.Year(), m.calendar.viewMonth.Month(), currentDay, 0, 0, 0, 0, time.UTC)
 
