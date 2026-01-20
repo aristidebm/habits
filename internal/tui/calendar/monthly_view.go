@@ -139,9 +139,9 @@ func (m *MonthlyView) renderHabitCard(habit Habit, isSelected bool) string {
 	// Habit name
 	var habitName string
 	if isSelected {
-		habitName = m.selectedHabitStyle.Render(habit.Name)
+		habitName = m.selectedHabitStyle.Render(habit.GetDisplayName())
 	} else {
-		habitName = m.habitNameStyle.Render(habit.Name)
+		habitName = m.habitNameStyle.Render(habit.GetDisplayName())
 	}
 	card.WriteString(habitName + "\n\n")
 

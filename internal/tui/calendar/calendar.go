@@ -47,7 +47,19 @@ type Habit struct {
 	ID      int
 	Name    string
 	Type    HabitType
+	Goal    float64
 	Pending bool
+}
+
+// GetDisplayName returns the display name for the habit, including goal in brackets for count/float habits
+func (h *Habit) GetDisplayName() string {
+	switch h.Type {
+	case HabitTypeCount, HabitTypeFloat:
+		if h.Goal > 0 {
+			return fmt.Sprintf("%s [%.0f]", h.Name, h.Goal)
+		}
+	}
+	return h.Name
 }
 
 // HabitEntry represents a habit entry for a specific date

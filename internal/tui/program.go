@@ -35,6 +35,7 @@ func NewProgram(application *app.App) *Program {
 			ID:      h.ID,
 			Name:    h.Name,
 			Type:    calendar.HabitType(h.Type),
+			Goal:    h.Goal,
 			Pending: false,
 		}
 	}
@@ -203,7 +204,7 @@ func (p *Program) View() string {
 func (p *Program) handleAddCommand(args []string) command.Result {
 	// Validate arguments
 	if len(args) < 2 {
-		return command.Error("Usage: add <name> <type>")
+		return command.Error("Usage: add <name> <type> [goal]")
 	}
 
 	name := args[0]
@@ -221,11 +222,21 @@ func (p *Program) handleAddCommand(args []string) command.Result {
 		return command.Error(fmt.Sprintf("Invalid habit type: %s (use: bit, count, float)", typeStr))
 	}
 
+	// Parse optional goal
+	var goal float64
+	if len(args) >= 3 {
+		_, err := fmt.Sscanf(args[2], "%f", &goal)
+		if err != nil {
+			return command.Error(fmt.Sprintf("Invalid goal value: %s", args[2]))
+		}
+	}
+
 	// Add to pending habits (not database yet)
 	p.calendar.AddPendingHabit(calendar.Habit{
 		ID:   0,
 		Name: name,
 		Type: calendar.HabitType(habitType),
+		Goal: goal,
 	})
 
 	// Reload calendar with new habits
@@ -464,6 +475,7 @@ func (p *Program) reloadCalendar() {
 			ID:      h.ID,
 			Name:    h.Name,
 			Type:    calendar.HabitType(h.Type),
+			Goal:    h.Goal,
 			Pending: false,
 		}
 	}

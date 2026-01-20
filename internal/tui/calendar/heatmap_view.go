@@ -86,9 +86,9 @@ func (h *HeatmapView) RenderContent() string {
 	for idx, habit := range h.calendar.habits {
 		var habitLabel string
 		if idx == h.calendar.selectedHabit {
-			habitLabel = h.selectedHabitStyle.Render(habit.Name)
+			habitLabel = h.selectedHabitStyle.Render(habit.GetDisplayName())
 		} else {
-			habitLabel = h.habitNameStyle.Render(habit.Name)
+			habitLabel = h.habitNameStyle.Render(habit.GetDisplayName())
 		}
 
 		// Build the heatmap row

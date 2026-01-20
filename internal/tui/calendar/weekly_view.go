@@ -187,9 +187,9 @@ func (w *WeeklyView) RenderContent() string {
 	for idx, habit := range w.calendar.habits {
 		var habitLabel string
 		if idx == w.calendar.selectedHabit {
-			habitLabel = w.selectedHabitLabelStyle.Render(habit.Name)
+			habitLabel = w.selectedHabitLabelStyle.Render(habit.GetDisplayName())
 		} else {
-			habitLabel = w.habitLabelStyle.Render(habit.Name)
+			habitLabel = w.habitLabelStyle.Render(habit.GetDisplayName())
 		}
 		row := habitLabel
 

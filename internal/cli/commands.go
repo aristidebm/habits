@@ -16,10 +16,10 @@ import (
 // newAddCmd creates the add command
 func newAddCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "add <name> <type>",
+		Use:   "add <name> <type> [goal]",
 		Short: "Add a new habit",
-		Long:  `Add a new habit with the specified name and type. Types: bit, count, float.`,
-		Args:  cobra.ExactArgs(2),
+		Long:  `Add a new habit with the specified name and type. Types: bit, count, float. Goal is optional for count/float types.`,
+		Args:  cobra.RangeArgs(2, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dbPath, _ := cmd.Flags().GetString("db")
 
@@ -48,7 +48,18 @@ func newAddCmd() *cobra.Command {
 				return fmt.Errorf("invalid habit type: %s (use: bit, count, float)", typeStr)
 			}
 
-			habit, err := application.CreateHabit(context.Background(), name, habitType, 0)
+			// Parse optional goal
+			var goal float64
+			if len(args) >= 3 {
+				goalStr := args[2]
+				var err error
+				goal, err = strconv.ParseFloat(goalStr, 64)
+				if err != nil {
+					return fmt.Errorf("invalid goal value: %s", goalStr)
+				}
+			}
+
+			habit, err := application.CreateHabit(context.Background(), name, habitType, goal)
 			if err != nil {
 				return fmt.Errorf("failed to create habit: %w", err)
 			}
