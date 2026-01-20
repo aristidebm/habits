@@ -137,6 +137,11 @@ func (a *App) GetThemeManager() *ThemeManager {
 	return a.themeManager
 }
 
+// DeleteEntriesByIDs deletes entries with the specified IDs
+func (a *App) DeleteEntriesByIDs(ctx context.Context, ids []int) error {
+	return a.Store.DeleteEntriesByIDs(ctx, ids)
+}
+
 // SetTheme sets the active theme
 func (a *App) SetTheme(name string) error {
 	theme, err := a.themeManager.LoadTheme(name)

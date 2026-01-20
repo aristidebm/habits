@@ -343,6 +343,34 @@ func (s *Store) HasNote(ctx context.Context, habitEntryID int) (bool, error) {
 	return count > 0, nil
 }
 
+func (s *Store) DeleteEntriesByIDs(ctx context.Context, ids []int) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	// Create placeholders for the IN clause
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := fmt.Sprintf("DELETE FROM habit_entries WHERE id IN (%s)", strings.Join(placeholders, ","))
+	result, err := s.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("failed to delete entries by IDs: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	slog.Info("Deleted entries by IDs", "count", rowsAffected, "ids", ids)
+	return nil
+}
+
 func (s *Store) Close() error {
 	if s.db != nil {
 		return s.db.Close()

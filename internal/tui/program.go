@@ -694,8 +694,35 @@ func (p *Program) handleWriteCommand(args []string) command.Result {
 		return command.Error(fmt.Sprintf("Error: %s", err))
 	}
 
+	// Collect IDs of entries marked for deletion (pending_deletion status in UI)
+	var entriesToDelete []int
+	for _, entry := range pendingEntries {
+		if entry.Status == calendar.HabitEntryStatusPendingDeletion {
+			// Find the database entry ID for this habit/date combination
+			for _, habit := range p.app.GetHabits(context.Background()) {
+				if habit.Name == entry.HabitName {
+					dbEntry, err := p.app.GetEntry(context.Background(), habit.ID, entry.Date)
+					if err == nil && dbEntry != nil {
+						entriesToDelete = append(entriesToDelete, dbEntry.ID)
+					}
+					break
+				}
+			}
+		}
+	}
+
+	// Batch delete entries marked for deletion
+	if len(entriesToDelete) > 0 {
+		if err := p.app.DeleteEntriesByIDs(context.Background(), entriesToDelete); err != nil {
+			return command.Error(fmt.Sprintf("Error deleting pending entries: %s", err))
+		}
+	}
+
 	p.reloadCalendar()
 	msg := fmt.Sprintf("Wrote %d habits, %d entries, and %d notes to database", len(pendingHabits), len(pendingEntries), pendingNotesCount)
+	if len(entriesToDelete) > 0 {
+		msg += fmt.Sprintf(" (deleted %d entries)", len(entriesToDelete))
+	}
 	return command.Success(msg)
 }
 

@@ -61,13 +61,36 @@ func (h *Habit) GetDisplayName() string {
 	return h.Name
 }
 
+// HabitEntryStatus represents the status of a habit entry
+type HabitEntryStatus int
+
+const (
+	HabitEntryStatusActive HabitEntryStatus = iota
+	HabitEntryStatusPendingAdding
+	HabitEntryStatusPendingDeletion
+)
+
+func (hes HabitEntryStatus) String() string {
+	switch hes {
+	case HabitEntryStatusActive:
+		return "active"
+	case HabitEntryStatusPendingAdding:
+		return "pending_adding"
+	case HabitEntryStatusPendingDeletion:
+		return "pending_deletion"
+	default:
+		return ""
+	}
+}
+
 // HabitEntry represents a habit entry for a specific date
 type HabitEntry struct {
 	Date      time.Time
 	Completed bool   // for bit type
 	Value     string // for count/float type, "-" for skipped
 	Pending   bool
-	HasNote   bool // Whether this entry has notes
+	Status    HabitEntryStatus // Status of the entry
+	HasNote   bool             // Whether this entry has notes
 }
 
 // Calendar is the main calendar component that manages habits and their entries
@@ -486,11 +509,16 @@ func (c *Calendar) GetViewMode() ViewMode {
 
 // SetEntry sets an entry for a habit on a specific date
 func (c *Calendar) SetEntry(habitName string, date time.Time, completed bool, value string, pending bool) {
-	c.SetEntryWithNote(habitName, date, completed, value, pending, false)
+	c.SetEntryWithStatus(habitName, date, completed, value, pending, HabitEntryStatusActive, false)
 }
 
 // SetEntryWithNote sets an entry for a habit on a specific date with note information
 func (c *Calendar) SetEntryWithNote(habitName string, date time.Time, completed bool, value string, pending bool, hasNote bool) {
+	c.SetEntryWithStatus(habitName, date, completed, value, pending, HabitEntryStatusActive, hasNote)
+}
+
+// SetEntryWithStatus sets an entry for a habit on a specific date with status and note information
+func (c *Calendar) SetEntryWithStatus(habitName string, date time.Time, completed bool, value string, pending bool, status HabitEntryStatus, hasNote bool) {
 	if c.entries[habitName] == nil {
 		c.entries[habitName] = make(map[time.Time]HabitEntry)
 	}
@@ -502,6 +530,7 @@ func (c *Calendar) SetEntryWithNote(habitName string, date time.Time, completed 
 		Completed: completed,
 		Value:     value,
 		Pending:   pending,
+		Status:    status,
 		HasNote:   hasNote,
 	}
 }
@@ -553,6 +582,11 @@ func (c *Calendar) GetCellValue(habit Habit, date time.Time, viewMode ViewMode) 
 	entry, exists := c.GetEntry(habit.Name, date)
 	if !exists {
 		return c.getDefaultValueForView(habit, date, viewMode)
+	}
+
+	// Check if entry is marked for deletion - show as untracked
+	if entry.Status == HabitEntryStatusPendingDeletion {
+		return c.getUntrackedSymbol(viewMode)
 	}
 
 	switch habit.Type {
@@ -725,11 +759,14 @@ func (c *Calendar) decrementEntry(habit Habit, date time.Time) {
 	if exists && entry.Value != "-" && entry.Value != "" {
 		var val int
 		fmt.Sscanf(entry.Value, "%d", &val)
-		if val > 1 {
+		if val > 0 {
 			val--
-			c.SetEntry(habit.Name, date, entry.Completed, fmt.Sprintf("%d", val), true)
-		} else {
-			c.SetEntry(habit.Name, date, false, "-", true)
+			if val == 0 {
+				// When reaching 0, mark as pending_deletion (which will be stored as -1 in DB)
+				c.SetEntryWithStatus(habit.Name, date, false, "-", true, HabitEntryStatusPendingDeletion, entry.HasNote)
+			} else {
+				c.SetEntry(habit.Name, date, entry.Completed, fmt.Sprintf("%d", val), true)
+			}
 		}
 	}
 }
@@ -740,12 +777,14 @@ func (c *Calendar) GetPendingEntries() []struct {
 	Date      time.Time
 	Completed bool
 	Value     string
+	Status    HabitEntryStatus
 } {
 	var pending []struct {
 		HabitName string
 		Date      time.Time
 		Completed bool
 		Value     string
+		Status    HabitEntryStatus
 	}
 
 	for habitName, habitEntries := range c.entries {
@@ -756,11 +795,13 @@ func (c *Calendar) GetPendingEntries() []struct {
 					Date      time.Time
 					Completed bool
 					Value     string
+					Status    HabitEntryStatus
 				}{
 					HabitName: habitName,
 					Date:      entry.Date,
 					Completed: entry.Completed,
 					Value:     entry.Value,
+					Status:    entry.Status,
 				})
 			}
 		}
