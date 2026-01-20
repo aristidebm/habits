@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
@@ -17,7 +18,7 @@ type App struct {
 
 func NewApp(dbPath string) (*App, error) {
 	// Load configuration
-	config, err := LoadConfig()
+	config, err := LoadConfig(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
@@ -26,6 +27,8 @@ func NewApp(dbPath string) (*App, error) {
 	if dbPath == "" {
 		dbPath = config.DB.Path
 	}
+
+	slog.Info("The database path is", "database", dbPath)
 
 	db, err := OpenDB(dbPath)
 	if err != nil {
@@ -104,9 +107,20 @@ func (a *App) GetConfig() *Config {
 }
 
 // LoadConfig loads the configuration from file
-func LoadConfig() (*Config, error) {
+func LoadConfig(dbPath string) (*Config, error) {
 	config := DefaultConfig()
-
+	if dbPath != "" {
+		config.DB.Path = dbPath
+	}
+	ensureDatabase := func() error {
+		if _, err := os.Stat(config.DB.Path); os.IsNotExist(err) {
+			// Config file doesn't exist, create with defaults
+			if err := EnsureDir(config.DB.Path); err != nil {
+				return fmt.Errorf("failed to create state directory: %w", err)
+			}
+		}
+		return nil
+	}
 	configPath := ConfigPath()
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		// Config file doesn't exist, create with defaults
@@ -116,6 +130,9 @@ func LoadConfig() (*Config, error) {
 		if err := SaveConfig(config); err != nil {
 			return nil, fmt.Errorf("failed to save default config: %w", err)
 		}
+		if err := ensureDatabase(); err != nil {
+			return nil, err
+		}
 		return config, nil
 	}
 
@@ -123,6 +140,10 @@ func LoadConfig() (*Config, error) {
 	_, err := toml.DecodeFile(configPath, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode config file: %w", err)
+	}
+
+	if err := ensureDatabase(); err != nil {
+		return nil, err
 	}
 
 	return config, nil
@@ -147,8 +168,4 @@ func SaveConfig(config *Config) error {
 	}
 
 	return nil
-}
-
-func (a *App) Close() error {
-	return a.Store.Close()
 }

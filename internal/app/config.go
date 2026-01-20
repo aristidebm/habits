@@ -32,11 +32,9 @@ type ViewConfig struct {
 
 // DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
-	homeDir, _ := os.UserHomeDir()
-
 	return &Config{
 		DB: DBConfig{
-			Path: filepath.Join(homeDir, ".local", "state", "habits", "habits.db"),
+			Path: StatePath(),
 		},
 		Views: ViewsConfig{
 			Weekly: ViewConfig{
@@ -64,9 +62,19 @@ func ConfigPath() string {
 	return filepath.Join(homeDir, ".config", "habits", "config.toml")
 }
 
+// StatePath returns the default database file path
+func StatePath() string {
+	homeDir, _ := os.UserHomeDir()
+	return filepath.Join(homeDir, ".local", "state", "habits", "habits.db")
+}
+
 // EnsureConfigDir ensures the configuration directory exists
 func EnsureConfigDir() error {
 	configPath := ConfigPath()
-	configDir := filepath.Dir(configPath)
-	return os.MkdirAll(configDir, 0755)
+	return EnsureDir(configPath)
+}
+
+// EnsureConfigDir ensures the configuration directory exists
+func EnsureDir(path string) error {
+	return os.MkdirAll(filepath.Dir(path), 0755)
 }

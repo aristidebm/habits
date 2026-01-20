@@ -106,7 +106,7 @@ func newEditCmd() *cobra.Command {
 			configPath := app.ConfigPath()
 
 			// Ensure config exists
-			if _, err := app.LoadConfig(); err != nil {
+			if _, err := app.LoadConfig(""); err != nil {
 				return fmt.Errorf("failed to load config: %w", err)
 			}
 

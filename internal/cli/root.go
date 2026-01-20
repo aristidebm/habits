@@ -20,7 +20,7 @@ func NewRootCmd() *cobra.Command {
 	}
 
 	// Add persistent flags
-	cmd.PersistentFlags().String("db", "./habits.db", "Database file path")
+	cmd.PersistentFlags().String("db", "", "Database file path")
 
 	// Add subcommands
 	cmd.AddCommand(newTUICmd())
