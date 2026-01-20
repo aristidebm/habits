@@ -79,6 +79,7 @@ type Calendar struct {
 
 	// Configuration
 	config *app.Config
+	styles *app.Styles
 
 	// State
 	viewMode      ViewMode
@@ -107,7 +108,7 @@ type Calendar struct {
 }
 
 // NewCalendar creates a new calendar component
-func NewCalendar(habits []Habit, config *app.Config, hasNoteFunc func(habitID int, date time.Time) bool) *Calendar {
+func NewCalendar(habits []Habit, config *app.Config, styles *app.Styles, hasNoteFunc func(habitID int, date time.Time) bool) *Calendar {
 	now := time.Now()
 
 	// Month start
@@ -119,6 +120,7 @@ func NewCalendar(habits []Habit, config *app.Config, hasNoteFunc func(habitID in
 		pendingEntries: make(map[string]map[time.Time]HabitEntry),
 		PendingNotes:   make(map[string]map[time.Time]string),
 		config:         config,
+		styles:         styles,
 		hasNoteFunc:    hasNoteFunc,
 		viewMode:       ViewModeWeekly,
 		selectedDate:   now,
@@ -132,9 +134,9 @@ func NewCalendar(habits []Habit, config *app.Config, hasNoteFunc func(habitID in
 	cal.centerDateInView(now)
 
 	// Initialize view renderers
-	cal.weeklyView = NewWeeklyView(cal)
-	cal.monthlyView = NewMonthlyView(cal)
-	cal.heatmapView = NewHeatmapView(cal)
+	cal.weeklyView = NewWeeklyView(cal, styles.Weekly)
+	cal.monthlyView = NewMonthlyView(cal, styles.Monthly)
+	cal.heatmapView = NewHeatmapView(cal, styles.Heatmap)
 
 	// Initialize viewport
 	cal.viewport = viewport.New(80, 20)
@@ -281,7 +283,11 @@ func (c *Calendar) updateViewportContent() {
 	case ViewModeMonthly:
 		content = c.monthlyView.RenderContent()
 	case ViewModeHeatmap:
-		content = c.heatmapView.RenderContent()
+		if c.heatmapView != nil {
+			content = c.heatmapView.RenderContent()
+		} else {
+			content = "Heatmap view not available"
+		}
 	}
 
 	c.viewport.SetContent(content)
@@ -453,7 +459,11 @@ func (c *Calendar) View() string {
 	case ViewModeMonthly:
 		header = c.monthlyView.RenderHeader()
 	case ViewModeHeatmap:
-		header = c.heatmapView.RenderHeader()
+		if c.heatmapView != nil {
+			header = c.heatmapView.RenderHeader()
+		} else {
+			header = "Heatmap View"
+		}
 	}
 
 	return header + "\n" + c.viewport.View()

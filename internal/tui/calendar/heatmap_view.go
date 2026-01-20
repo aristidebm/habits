@@ -5,57 +5,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"example.com/habits/internal/app"
 )
 
 // HeatmapView handles rendering of the heatmap calendar view
 type HeatmapView struct {
 	calendar *Calendar
-
-	// Styles
-	headerStyle        lipgloss.Style
-	habitNameStyle     lipgloss.Style
-	selectedHabitStyle lipgloss.Style
-	completedStyle     lipgloss.Style
-	missedStyle        lipgloss.Style
-	noteStyle          lipgloss.Style
-	futureStyle        lipgloss.Style
-	dayLabelStyle      lipgloss.Style
+	styles   *app.HeatmapStyles
 }
 
 // NewHeatmapView creates a new heatmap view renderer
-func NewHeatmapView(calendar *Calendar) *HeatmapView {
+func NewHeatmapView(calendar *Calendar, styles *app.HeatmapStyles) *HeatmapView {
 	return &HeatmapView{
 		calendar: calendar,
-
-		// Initialize styles
-		headerStyle: lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("12")).
-			Padding(0, 1),
-		habitNameStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("14")).
-			Width(20).
-			Align(lipgloss.Left),
-		selectedHabitStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("15")).
-			Background(lipgloss.Color("240")).
-			Width(20).
-			Align(lipgloss.Left).
-			Bold(true),
-		completedStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("10")).
-			Bold(true),
-		missedStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("9")),
-		noteStyle: lipgloss.NewStyle().
-			Background(lipgloss.Color("17")),
-		futureStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("8")),
-		dayLabelStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")).
-			Align(lipgloss.Center).
-			Width(2),
+		styles:   styles,
 	}
 }
 
@@ -65,7 +28,7 @@ func (h *HeatmapView) RenderHeader() string {
 	year, month, _ := now.Date()
 
 	header := fmt.Sprintf("Heatmap - %s %d", month.String(), year)
-	return h.headerStyle.Render(header)
+	return h.styles.Header.Render(header)
 }
 
 // RenderContent renders the heatmap content
@@ -89,9 +52,9 @@ func (h *HeatmapView) RenderContent() string {
 	for idx, habit := range h.calendar.habits {
 		var habitLabel string
 		if idx == h.calendar.selectedHabit {
-			habitLabel = h.selectedHabitStyle.Render(habit.GetDisplayName())
+			habitLabel = h.styles.SelectedHabit.Render(habit.GetDisplayName())
 		} else {
-			habitLabel = h.habitNameStyle.Render(habit.GetDisplayName())
+			habitLabel = h.styles.HabitName.Render(habit.GetDisplayName())
 		}
 
 		// Build the heatmap row
@@ -108,11 +71,11 @@ func (h *HeatmapView) RenderContent() string {
 
 	// Add day labels at the bottom
 	var dayLabels []string
-	dayLabels = append(dayLabels, h.habitNameStyle.Render("")) // Empty space for habit name column
+	dayLabels = append(dayLabels, h.styles.HabitName.Render("")) // Empty space for habit name column
 
 	for day := 1; day <= daysInMonth; day++ {
 		dayStr := fmt.Sprintf("%2d", day)
-		dayLabels = append(dayLabels, h.dayLabelStyle.Render(dayStr))
+		dayLabels = append(dayLabels, h.styles.DayLabel.Render(dayStr))
 	}
 
 	sb.WriteString(strings.Join(dayLabels, "") + "\n")
@@ -171,19 +134,19 @@ func (h *HeatmapView) getHeatmapCell(habit Habit, date time.Time, isSelected boo
 	var cell string
 	if hasNote {
 		// Notes override other styling
-		cell = h.noteStyle.Render(symbol)
+		cell = h.styles.Note.Render(symbol)
 	} else {
 		switch symbol {
 		case h.calendar.getCompletedSymbol(ViewModeHeatmap):
-			cell = h.completedStyle.Render(symbol)
+			cell = h.styles.Completed.Render(symbol)
 		case h.calendar.getMissedSymbol(ViewModeHeatmap):
-			cell = h.missedStyle.Render(symbol)
+			cell = h.styles.Missed.Render(symbol)
 		case h.calendar.getUntrackedSymbol(ViewModeHeatmap):
-			cell = h.futureStyle.Render(symbol)
+			cell = h.styles.Future.Render(symbol)
 		default:
 			// For count/float values, apply completed styling
 			if habit.Type == HabitTypeCount || habit.Type == HabitTypeFloat {
-				cell = h.completedStyle.Render(symbol)
+				cell = h.styles.Completed.Render(symbol)
 			} else {
 				cell = symbol
 			}

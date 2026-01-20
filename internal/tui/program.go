@@ -65,7 +65,7 @@ func NewProgram(application *app.App) *Program {
 		return err == nil && hasNote
 	}
 
-	cal := calendar.NewCalendar(calendarHabits, application.GetConfig(), hasNoteFunc)
+	cal := calendar.NewCalendar(calendarHabits, application.GetConfig(), application.GetStyles(), hasNoteFunc)
 
 	// Sync entries (but not pending habits - they have no entries yet)
 	syncEntriesToCalendar(application, cal, true)

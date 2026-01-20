@@ -12,8 +12,10 @@ import (
 
 type App struct {
 	*Store
-	config     *Config
-	Datasource string
+	config       *Config
+	themeManager *ThemeManager
+	styles       *Styles
+	Datasource   string
 }
 
 func NewApp(dbPath string) (*App, error) {
@@ -40,10 +42,21 @@ func NewApp(dbPath string) (*App, error) {
 		return nil, err
 	}
 
+	// Initialize theme system
+	themeManager := NewThemeManager()
+	theme, err := themeManager.LoadTheme(config.Theme.Name)
+	if err != nil {
+		// Fallback to default theme
+		theme, _ = themeManager.LoadTheme("default")
+	}
+	styles := NewStyles(theme)
+
 	return &App{
-		Datasource: dbPath,
-		Store:      &Store{db: db},
-		config:     config,
+		Datasource:   dbPath,
+		Store:        &Store{db: db},
+		config:       config,
+		themeManager: themeManager,
+		styles:       styles,
 	}, nil
 }
 
@@ -110,6 +123,30 @@ func (a *App) Export(ctx context.Context) ([]ExportHabit, error) {
 // GetConfig returns the application configuration
 func (a *App) GetConfig() *Config {
 	return a.config
+}
+
+// GetStyles returns the application styles
+func (a *App) GetStyles() *Styles {
+	return a.styles
+}
+
+// GetThemeManager returns the theme manager
+func (a *App) GetThemeManager() *ThemeManager {
+	return a.themeManager
+}
+
+// SetTheme sets the active theme
+func (a *App) SetTheme(name string) error {
+	theme, err := a.themeManager.LoadTheme(name)
+	if err != nil {
+		return err
+	}
+
+	a.styles = NewStyles(theme)
+	a.config.Theme.Name = name
+
+	// Save config
+	return SaveConfig(a.config)
 }
 
 // LoadConfig loads the configuration from file

@@ -6,70 +6,21 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"example.com/habits/internal/app"
 )
 
 // WeeklyView handles rendering of the weekly calendar view
 type WeeklyView struct {
 	calendar *Calendar
-
-	// Styles
-	headerStyle             lipgloss.Style
-	dateHeaderStyle         lipgloss.Style
-	dayNameStyle            lipgloss.Style
-	cellStyle               lipgloss.Style
-	noteCellStyle           lipgloss.Style
-	selectedCellStyle       lipgloss.Style
-	todayStyle              lipgloss.Style
-	habitLabelStyle         lipgloss.Style
-	selectedHabitLabelStyle lipgloss.Style
+	styles   *app.WeeklyStyles
 }
 
 // NewWeeklyView creates a new weekly view renderer
-func NewWeeklyView(calendar *Calendar) *WeeklyView {
+func NewWeeklyView(calendar *Calendar, styles *app.WeeklyStyles) *WeeklyView {
 	return &WeeklyView{
 		calendar: calendar,
-
-		// Initialize styles
-		headerStyle: lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("12")).
-			Padding(0, 1),
-		dateHeaderStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("15")).
-			Bold(true).
-			Align(lipgloss.Center).
-			Width(8),
-		dayNameStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")).
-			Align(lipgloss.Center).
-			Width(8),
-		cellStyle: lipgloss.NewStyle().
-			Align(lipgloss.Center).
-			Width(8),
-		noteCellStyle: lipgloss.NewStyle().
-			Align(lipgloss.Center).
-			Width(8).
-			Background(lipgloss.Color("17")),
-		selectedCellStyle: lipgloss.NewStyle().
-			Align(lipgloss.Center).
-			Width(8).
-			Background(lipgloss.Color("240")).
-			Foreground(lipgloss.Color("15")),
-		todayStyle: lipgloss.NewStyle().
-			Align(lipgloss.Center).
-			Width(8).
-			Foreground(lipgloss.Color("10")).
-			Bold(true),
-		habitLabelStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("14")).
-			Width(20).
-			Align(lipgloss.Left),
-		selectedHabitLabelStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("15")).
-			Background(lipgloss.Color("240")).
-			Width(20).
-			Align(lipgloss.Left).
-			Bold(true),
+		styles:   styles,
 	}
 }
 
@@ -108,11 +59,11 @@ func (w *WeeklyView) RenderHeader() string {
 
 	headerLine := lipgloss.JoinHorizontal(
 		lipgloss.Top,
-		w.headerStyle.Render(header),
+		w.styles.Header.Render(header),
 		strings.Repeat(" ", spacingLen),
-		w.headerStyle.Render(dayIndicator),
+		w.styles.Header.Render(dayIndicator),
 		strings.Repeat(" ", spacingLen),
-		w.headerStyle.Render(weekIndicator),
+		w.styles.Header.Render(weekIndicator),
 	)
 	sb.WriteString(headerLine + "\n\n")
 
@@ -131,16 +82,13 @@ func (w *WeeklyView) RenderHeader() string {
 	}
 
 	// Create day names slice starting from the correct day
-	dayNamesRow := w.habitLabelStyle.Render("")
-	for i := 0; i < daysToShow; i++ {
-		dayIndex := (startDay - 1 + i) % 7
-		dayName := allDayNames[dayIndex]
-		dayNamesRow += w.dayNameStyle.Render(dayName)
+	dayNames := allDayNames[startDay-1:]
+	dayNames = append(dayNames, allDayNames[:startDay-1]...)
+	dayNamesRow := w.styles.HabitLabel.Render("")
+	for _, dayName := range dayNames {
+		dayNamesRow += w.styles.DayName.Render(dayName)
 	}
-	sb.WriteString(dayNamesRow + "\n")
-
-	// Dates row
-	datesRow := w.habitLabelStyle.Render("")
+	datesRow := w.styles.HabitLabel.Render("")
 	today := time.Now()
 	for i := 0; i < daysToShow; i++ {
 		date := w.calendar.viewStartDate.AddDate(0, 0, i)
@@ -151,15 +99,24 @@ func (w *WeeklyView) RenderHeader() string {
 			date.Day() == today.Day()
 
 		if isToday {
-			datesRow += w.todayStyle.Render(dateStr)
+			datesRow += w.styles.TodayCell.Render(dateStr)
 		} else {
-			datesRow += w.dateHeaderStyle.Render(dateStr)
+			datesRow += w.styles.DateHeader.Render(dateStr)
+		}
+	}
+	todayIndicatorRow := w.styles.HabitLabel.Render("")
+	for i := 0; i < daysToShow; i++ {
+		date := w.calendar.viewStartDate.AddDate(0, 0, i)
+		isToday := date.Year() == today.Year() &&
+			date.Month() == today.Month() &&
+			date.Day() == today.Day()
+		if isToday {
+			todayIndicatorRow += w.styles.Cell.Render("▼")
+		} else {
+			todayIndicatorRow += w.styles.Cell.Render("")
 		}
 	}
 	sb.WriteString(datesRow + "\n")
-
-	// Today indicator
-	todayIndicatorRow := w.habitLabelStyle.Render("")
 	for i := 0; i < daysToShow; i++ {
 		date := w.calendar.viewStartDate.AddDate(0, 0, i)
 		isToday := date.Year() == today.Year() &&
@@ -167,9 +124,9 @@ func (w *WeeklyView) RenderHeader() string {
 			date.Day() == today.Day()
 
 		if isToday {
-			todayIndicatorRow += w.cellStyle.Render("▼")
+			todayIndicatorRow += w.styles.Cell.Render("▼")
 		} else {
-			todayIndicatorRow += w.cellStyle.Render("")
+			todayIndicatorRow += w.styles.Cell.Render("")
 		}
 	}
 	sb.WriteString(todayIndicatorRow)
@@ -192,9 +149,9 @@ func (w *WeeklyView) RenderContent() string {
 	for idx, habit := range w.calendar.habits {
 		var habitLabel string
 		if idx == w.calendar.selectedHabit {
-			habitLabel = w.selectedHabitLabelStyle.Render(habit.GetDisplayName())
+			habitLabel = w.styles.SelectedHabitLabel.Render(habit.GetDisplayName())
 		} else {
-			habitLabel = w.habitLabelStyle.Render(habit.GetDisplayName())
+			habitLabel = w.styles.HabitLabel.Render(habit.GetDisplayName())
 		}
 		row := habitLabel
 
@@ -210,11 +167,11 @@ func (w *WeeklyView) RenderContent() string {
 			hasNote := w.calendar.HasEntryNote(habit.Name, date)
 
 			if isSelected {
-				row += w.selectedCellStyle.Render(cellValue)
+				row += w.styles.SelectedCell.Render(cellValue)
 			} else if hasNote {
-				row += w.noteCellStyle.Render(cellValue)
+				row += w.styles.NoteCell.Render(cellValue)
 			} else {
-				row += w.cellStyle.Render(cellValue)
+				row += w.styles.Cell.Render(cellValue)
 			}
 		}
 		sb.WriteString(row + "\n")

@@ -6,64 +6,21 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"example.com/habits/internal/app"
 )
 
 // MonthlyView handles rendering of the monthly calendar view
 type MonthlyView struct {
 	calendar *Calendar
-
-	// Styles
-	headerStyle        lipgloss.Style
-	habitNameStyle     lipgloss.Style
-	selectedHabitStyle lipgloss.Style
-	cellStyle          lipgloss.Style
-	noteCellStyle      lipgloss.Style
-	selectedCellStyle  lipgloss.Style
-	emptyStyle         lipgloss.Style
-	cardStyle          lipgloss.Style
-	footerStyle        lipgloss.Style
+	styles   *app.MonthlyStyles
 }
 
 // NewMonthlyView creates a new monthly view renderer
-func NewMonthlyView(calendar *Calendar) *MonthlyView {
+func NewMonthlyView(calendar *Calendar, styles *app.MonthlyStyles) *MonthlyView {
 	return &MonthlyView{
 		calendar: calendar,
-
-		// Initialize styles
-		headerStyle: lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("12")).
-			Padding(0, 1),
-		habitNameStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("14")).
-			Align(lipgloss.Left),
-		selectedHabitStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("15")).
-			Bold(true).
-			Align(lipgloss.Left),
-		cellStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("15")).
-			Align(lipgloss.Center).
-			Width(4),
-		noteCellStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("15")).
-			Align(lipgloss.Center).
-			Width(4).
-			Background(lipgloss.Color("17")),
-		selectedCellStyle: lipgloss.NewStyle().
-			Background(lipgloss.Color("240")).
-			Foreground(lipgloss.Color("15")).
-			Align(lipgloss.Center).
-			Width(4),
-		emptyStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("235")).
-			Align(lipgloss.Center).
-			Width(4),
-		cardStyle: lipgloss.NewStyle().
-			Padding(0, 2),
-		footerStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("14")).
-			Padding(1, 1),
+		styles:   styles,
 	}
 }
 
@@ -73,7 +30,7 @@ func (m *MonthlyView) RenderHeader() string {
 		m.calendar.viewMonth.Format("January"),
 		m.calendar.viewMonth.Year(),
 	)
-	return m.headerStyle.Render(header)
+	return m.styles.Header.Render(header)
 }
 
 // RenderContent renders scrollable content (habit cards)
@@ -123,9 +80,9 @@ func (m *MonthlyView) RenderContent() string {
 
 	footerLine := lipgloss.JoinHorizontal(
 		lipgloss.Center,
-		m.footerStyle.Render(footer),
+		m.styles.Footer.Render(footer),
 		strings.Repeat(" ", spacingLen),
-		m.footerStyle.Render(dateStr),
+		m.styles.Footer.Render(dateStr),
 	)
 
 	sb.WriteString(footerLine)
@@ -145,9 +102,9 @@ func (m *MonthlyView) renderHabitCard(habit Habit, isSelected bool) string {
 	// Habit name
 	var habitName string
 	if isSelected {
-		habitName = m.selectedHabitStyle.Render(habit.GetDisplayName())
+		habitName = m.styles.SelectedHabit.Render(habit.GetDisplayName())
 	} else {
-		habitName = m.habitNameStyle.Render(habit.GetDisplayName())
+		habitName = m.styles.HabitName.Render(habit.GetDisplayName())
 	}
 	card.WriteString(habitName + "\n\n")
 
@@ -169,7 +126,7 @@ func (m *MonthlyView) renderHabitCard(habit Habit, isSelected bool) string {
 		for day := 0; day < 7; day++ {
 			if (week == 0 && day < weekday) || currentDay > daysInMonth {
 				// Empty cell
-				weekRow += m.emptyStyle.Render("◦")
+				weekRow += m.styles.Empty.Render("◦")
 			} else {
 				date := time.Date(m.calendar.viewMonth.Year(), m.calendar.viewMonth.Month(), currentDay, 0, 0, 0, 0, time.UTC)
 
@@ -183,11 +140,11 @@ func (m *MonthlyView) renderHabitCard(habit Habit, isSelected bool) string {
 				hasNote := m.calendar.HasEntryNote(habit.Name, date)
 
 				if isSelectedDate {
-					weekRow += m.selectedCellStyle.Render(cellValue)
+					weekRow += m.styles.SelectedCell.Render(cellValue)
 				} else if hasNote {
-					weekRow += m.noteCellStyle.Render(cellValue)
+					weekRow += m.styles.NoteCell.Render(cellValue)
 				} else {
-					weekRow += m.cellStyle.Render(cellValue)
+					weekRow += m.styles.Cell.Render(cellValue)
 				}
 
 				currentDay++
@@ -202,7 +159,7 @@ func (m *MonthlyView) renderHabitCard(habit Habit, isSelected bool) string {
 		}
 	}
 
-	return m.cardStyle.Render(card.String())
+	return m.styles.Card.Render(card.String())
 }
 
 // getCompactCellValue returns a compact display value for a habit on a specific date

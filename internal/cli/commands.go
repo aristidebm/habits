@@ -558,6 +558,101 @@ func newNoteCmd() *cobra.Command {
 	return cmd
 }
 
+// newThemeCmd creates the theme command
+func newThemeCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "theme",
+		Short: "Manage themes",
+		Long:  `Manage application themes. Use 'theme list' to see available themes, 'theme set <name>' to change theme.`,
+	}
+
+	cmd.AddCommand(newThemeListCmd())
+	cmd.AddCommand(newThemeSetCmd())
+
+	return cmd
+}
+
+// newThemeListCmd creates the theme list command
+func newThemeListCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List available themes",
+		Long:  `List all available themes including built-in and custom themes.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dbPath, _ := cmd.Flags().GetString("db")
+
+			application, err := app.NewApp(dbPath)
+			if err != nil {
+				return err
+			}
+			defer application.Close()
+
+			if err := application.Migrate(); err != nil {
+				return err
+			}
+
+			themes := application.GetThemeManager().ListThemes()
+			current := application.GetConfig().Theme.Name
+
+			fmt.Println("Available themes:")
+			for _, theme := range themes {
+				marker := " "
+				if theme == current {
+					marker = "*"
+				}
+				fmt.Printf("  %s %s\n", marker, theme)
+			}
+
+			return nil
+		},
+	}
+}
+
+// newThemeSetCmd creates the theme set command
+func newThemeSetCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "set <name>",
+		Short: "Set the active theme",
+		Long:  `Set the active theme. Requires application restart to take effect.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dbPath, _ := cmd.Flags().GetString("db")
+			themeName := args[0]
+
+			application, err := app.NewApp(dbPath)
+			if err != nil {
+				return err
+			}
+			defer application.Close()
+
+			if err := application.Migrate(); err != nil {
+				return err
+			}
+
+			// Check if theme exists
+			themes := application.GetThemeManager().ListThemes()
+			found := false
+			for _, theme := range themes {
+				if theme == themeName {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				return fmt.Errorf("theme '%s' not found. Use 'habits theme list' to see available themes", themeName)
+			}
+
+			if err := application.SetTheme(themeName); err != nil {
+				return fmt.Errorf("failed to set theme: %w", err)
+			}
+
+			fmt.Printf("Theme set to '%s'. Restart the application for changes to take effect.\n", themeName)
+			return nil
+		},
+	}
+}
+
 // getEntryStatus returns a status string for an entry
 func getEntryStatus(habit *app.Habit, entry *app.HabitEntry) string {
 	if entry == nil {

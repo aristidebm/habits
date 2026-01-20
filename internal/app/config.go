@@ -9,6 +9,7 @@ import (
 type Config struct {
 	DB    DBConfig    `toml:"db"`
 	Views ViewsConfig `toml:"views"`
+	Theme ThemeConfig `toml:"theme"`
 }
 
 // DBConfig represents database configuration
@@ -28,6 +29,11 @@ type ViewConfig struct {
 	Missed    string `toml:"missed"`
 	Completed string `toml:"completed"`
 	Untracked string `toml:"untracked"`
+}
+
+// ThemeConfig represents theme configuration
+type ThemeConfig struct {
+	Name string `toml:"name"`
 }
 
 // DefaultConfig returns the default configuration
@@ -53,6 +59,9 @@ func DefaultConfig() *Config {
 				Untracked: "✗",
 			},
 		},
+		Theme: ThemeConfig{
+			Name: "default",
+		},
 	}
 }
 
@@ -77,4 +86,15 @@ func EnsureConfigDir() error {
 // EnsureConfigDir ensures the configuration directory exists
 func EnsureDir(path string) error {
 	return os.MkdirAll(filepath.Dir(path), 0755)
+}
+
+// ThemeDir returns the default theme directory path
+func ThemeDir() string {
+	homeDir, _ := os.UserHomeDir()
+	return filepath.Join(homeDir, ".config", "habits", "themes")
+}
+
+// EnsureThemeDir ensures the theme directory exists
+func EnsureThemeDir() error {
+	return os.MkdirAll(ThemeDir(), 0755)
 }
