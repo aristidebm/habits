@@ -116,7 +116,7 @@ func NewWeeklyStyles(theme *Theme) *WeeklyStyles {
 			Foreground(lipgloss.Color(theme.Colors.Header)),
 
 		DateHeader: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Colors.HabitSelectedFG)).
+			Foreground(lipgloss.Color(theme.Colors.Header)).
 			Align(lipgloss.Center).
 			Width(8),
 

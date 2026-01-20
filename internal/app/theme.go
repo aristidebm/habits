@@ -174,19 +174,19 @@ func (tm *ThemeManager) getBuiltInTheme(name string) *Theme {
 			Name:   "Monochrome",
 			Author: "Habits Team",
 			Colors: ThemeColors{
-				Header:          "#000000", // Black
-				HabitName:       "#333333", // Dark gray
-				HabitSelectedFG: "#FFFFFF", // White
-				HabitSelectedBG: "#000000", // Black
-				Completed:       "#666666", // Medium gray
-				Missed:          "#999999", // Light gray
-				Untracked:       "#CCCCCC", // Very light gray
-				Today:           "#666666", // Medium gray
-				NoteBG:          "#F0F0F0", // Very light gray
-				DBPath:          "#CCCCCC", // Very light gray
-				Prompt:          "#000000", // Black
-				Error:           "#999999", // Light gray
-				Success:         "#666666", // Medium gray
+				Header:          "#FFFFFF", // White
+				HabitName:       "#FFFFFF", // White
+				HabitSelectedFG: "#000000", // Black (for contrast on selected)
+				HabitSelectedBG: "#FFFFFF", // White background for selected
+				Completed:       "#FFFFFF", // White
+				Missed:          "#FFFFFF", // White
+				Untracked:       "#FFFFFF", // White
+				Today:           "#FFFFFF", // White
+				NoteBG:          "#000000", // Black for note cells only
+				DBPath:          "#FFFFFF", // White
+				Prompt:          "#FFFFFF", // White
+				Error:           "#FFFFFF", // White
+				Success:         "#FFFFFF", // White
 			},
 		}
 	default:
