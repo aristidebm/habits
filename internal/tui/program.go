@@ -65,9 +65,49 @@ func NewProgram(application *app.App) *Program {
 func (p *Program) registerCommands() {
 	p.commandLine.RegisterCommand(command.Command{
 		Name:        "add",
+		Aliases:     []string{"a"},
 		Description: "Add a new habit",
-		Usage:       "add <name> <type>  (types: bit, count, float)",
+		Usage:       "add <name> <type> [goal]",
 		Handler:     p.handleAddCommand,
+	})
+
+	p.commandLine.RegisterCommand(command.Command{
+		Name:        "delete",
+		Aliases:     []string{"d"},
+		Description: "Delete a habit",
+		Usage:       "delete <name>",
+		Handler:     p.handleDeleteCommand,
+	})
+
+	p.commandLine.RegisterCommand(command.Command{
+		Name:        "rename",
+		Aliases:     []string{"r"},
+		Description: "Rename a habit",
+		Usage:       "rename <old_name> <new_name>",
+		Handler:     p.handleRenameCommand,
+	})
+
+	p.commandLine.RegisterCommand(command.Command{
+		Name:        "write",
+		Aliases:     []string{"w"},
+		Description: "Write pending habits to database",
+		Usage:       "write",
+		Handler:     p.handleWriteCommand,
+	})
+
+	p.commandLine.RegisterCommand(command.Command{
+		Name:        "quit",
+		Aliases:     []string{"q"},
+		Description: "Quit the application",
+		Usage:       "quit",
+		Handler:     p.handleQuitCommand,
+	})
+
+	p.commandLine.RegisterCommand(command.Command{
+		Name:        "wq",
+		Description: "Write pending habits and quit",
+		Usage:       "wq",
+		Handler:     p.handleWQCommand,
 	})
 
 	p.commandLine.RegisterCommand(command.Command{
@@ -512,6 +552,17 @@ func (p *Program) handlePrevMonthCommand(args []string) command.Result {
 
 func (p *Program) handleQuitCommand(args []string) command.Result {
 	// No arguments needed - validation implicit
+	return command.Quit()
+}
+
+func (p *Program) handleWQCommand(args []string) command.Result {
+	// First write pending habits
+	result := p.handleWriteCommand(args)
+	if result.Type == command.ResultError {
+		return result // Return the error if write failed
+	}
+
+	// Then quit
 	return command.Quit()
 }
 

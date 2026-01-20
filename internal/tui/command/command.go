@@ -47,6 +47,7 @@ type CommandFunc func(args []string) Result
 // Command represents a registerable command
 type Command struct {
 	Name        string
+	Aliases     []string
 	Description string
 	Usage       string
 	Handler     CommandFunc
@@ -102,6 +103,10 @@ func NewCommandLine() *CommandLine {
 // RegisterCommand registers a new command
 func (c *CommandLine) RegisterCommand(cmd Command) {
 	c.commands[cmd.Name] = cmd
+	// Register aliases
+	for _, alias := range cmd.Aliases {
+		c.commands[alias] = cmd
+	}
 }
 
 // Show shows the command line
@@ -224,11 +229,16 @@ func (c *CommandLine) handleHelp(args []string) Result {
 		if !exists {
 			return Error(fmt.Sprintf("Unknown command: %s", cmdName))
 		}
-		return Success(fmt.Sprintf("%s: %s\nUsage: %s", cmd.Name, cmd.Description, cmd.Usage))
+
+		helpMsg := fmt.Sprintf("%s: %s\nUsage: %s", cmd.Name, cmd.Description, cmd.Usage)
+		if len(cmd.Aliases) > 0 {
+			helpMsg += fmt.Sprintf("\nAliases: %s", strings.Join(cmd.Aliases, ", "))
+		}
+		return Success(helpMsg)
 	}
 
 	// Show brief help message instead of full command list
-	return Success("Type ':help <command>' for help on a specific command. Available: add, delete, rename, write, quit")
+	return Success("Type ':help <command>' for help on a specific command. Available: a(add), d(delete), r(rename), w(write), q(quit), wq(write+quit)")
 }
 
 // SetError sets an error message to display
