@@ -227,13 +227,8 @@ func (c *CommandLine) handleHelp(args []string) Result {
 		return Success(fmt.Sprintf("%s: %s\nUsage: %s", cmd.Name, cmd.Description, cmd.Usage))
 	}
 
-	// Show all commands
-	var help strings.Builder
-	help.WriteString("Available commands:\n")
-	for _, cmd := range c.commands {
-		help.WriteString(fmt.Sprintf("  %-15s %s\n", cmd.Name, cmd.Description))
-	}
-	return Success(help.String())
+	// Show brief help message instead of full command list
+	return Success("Type ':help <command>' for help on a specific command. Available: add, delete, rename, write, quit")
 }
 
 // SetError sets an error message to display
