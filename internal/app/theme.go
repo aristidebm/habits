@@ -16,25 +16,25 @@ type Theme struct {
 	Author string `toml:"author"`
 
 	// Core colors
-	Header          lipgloss.AdaptiveColor `toml:"header"`
-	HabitName       lipgloss.AdaptiveColor `toml:"habit_name"`
-	HabitSelectedFG lipgloss.AdaptiveColor `toml:"habit_selected_fg"`
-	HabitSelectedBG lipgloss.AdaptiveColor `toml:"habit_selected_bg"`
+	Header          lipgloss.Color `toml:"header"`
+	HabitName       lipgloss.Color `toml:"habit_name"`
+	HabitSelectedFG lipgloss.Color `toml:"habit_selected_fg"`
+	HabitSelectedBG lipgloss.Color `toml:"habit_selected_bg"`
 
 	// Habit states
-	Completed lipgloss.AdaptiveColor `toml:"completed"`
-	Missed    lipgloss.AdaptiveColor `toml:"missed"`
-	Untracked lipgloss.AdaptiveColor `toml:"untracked"`
-	Today     lipgloss.AdaptiveColor `toml:"today"`
+	Completed lipgloss.Color `toml:"completed"`
+	Missed    lipgloss.Color `toml:"missed"`
+	Untracked lipgloss.Color `toml:"untracked"`
+	Today     lipgloss.Color `toml:"today"`
 
 	// Special elements
-	NoteBG lipgloss.AdaptiveColor `toml:"note_bg"`
-	DBPath lipgloss.AdaptiveColor `toml:"db_path"`
+	NoteBG lipgloss.Color `toml:"note_bg"`
+	DBPath lipgloss.Color `toml:"db_path"`
 
 	// Command line
-	Prompt  lipgloss.AdaptiveColor `toml:"prompt"`
-	Error   lipgloss.AdaptiveColor `toml:"error"`
-	Success lipgloss.AdaptiveColor `toml:"success"`
+	Prompt  lipgloss.Color `toml:"prompt"`
+	Error   lipgloss.Color `toml:"error"`
+	Success lipgloss.Color `toml:"success"`
 }
 
 // ThemeManager manages theme loading and switching
@@ -115,73 +115,73 @@ func (tm *ThemeManager) getBuiltInTheme(name string) *Theme {
 		return &Theme{
 			Name:            "Default",
 			Author:          "Habits Team",
-			Header:          lipgloss.AdaptiveColor{Light: "#87CEEB", Dark: "#87CEEB"},
-			HabitName:       lipgloss.AdaptiveColor{Light: "#00CED1", Dark: "#00CED1"},
-			HabitSelectedFG: lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#FFFFFF"},
-			HabitSelectedBG: lipgloss.AdaptiveColor{Light: "#696969", Dark: "#696969"},
-			Completed:       lipgloss.AdaptiveColor{Light: "#32CD32", Dark: "#32CD32"},
-			Missed:          lipgloss.AdaptiveColor{Light: "#DC143C", Dark: "#DC143C"},
-			Untracked:       lipgloss.AdaptiveColor{Light: "#708090", Dark: "#708090"},
-			Today:           lipgloss.AdaptiveColor{Light: "#32CD32", Dark: "#32CD32"},
-			NoteBG:          lipgloss.AdaptiveColor{Light: "#2F4F4F", Dark: "#2F4F4F"},
-			DBPath:          lipgloss.AdaptiveColor{Light: "#708090", Dark: "#708090"},
-			Prompt:          lipgloss.AdaptiveColor{Light: "#87CEEB", Dark: "#87CEEB"},
-			Error:           lipgloss.AdaptiveColor{Light: "#DC143C", Dark: "#DC143C"},
-			Success:         lipgloss.AdaptiveColor{Light: "#32CD32", Dark: "#32CD32"},
+			Header:          "#87CEEB",
+			HabitName:       "#00CED1",
+			HabitSelectedFG: "#FFFFFF",
+			HabitSelectedBG: "#696969",
+			Completed:       "#32CD32",
+			Missed:          "#DC143C",
+			Untracked:       "#708090",
+			Today:           "#32CD32",
+			NoteBG:          "#2F4F4F",
+			DBPath:          "#708090",
+			Prompt:          "#87CEEB",
+			Error:           "#DC143C",
+			Success:         "#32CD32",
 		}
 	case "dark":
 		return &Theme{
 			Name:            "Dark",
 			Author:          "Habits Team",
-			Header:          lipgloss.AdaptiveColor{Light: "#FF6B6B", Dark: "#FF6B6B"},
-			HabitName:       lipgloss.AdaptiveColor{Light: "#4ECDC4", Dark: "#4ECDC4"},
-			HabitSelectedFG: lipgloss.AdaptiveColor{Light: "#000000", Dark: "#000000"},
-			HabitSelectedBG: lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#FFFFFF"},
-			Completed:       lipgloss.AdaptiveColor{Light: "#45B7D1", Dark: "#45B7D1"},
-			Missed:          lipgloss.AdaptiveColor{Light: "#FFA07A", Dark: "#FFA07A"},
-			Untracked:       lipgloss.AdaptiveColor{Light: "#778899", Dark: "#778899"},
-			Today:           lipgloss.AdaptiveColor{Light: "#45B7D1", Dark: "#45B7D1"},
-			NoteBG:          lipgloss.AdaptiveColor{Light: "#2F4F4F", Dark: "#2F4F4F"},
-			DBPath:          lipgloss.AdaptiveColor{Light: "#778899", Dark: "#778899"},
-			Prompt:          lipgloss.AdaptiveColor{Light: "#FF6B6B", Dark: "#FF6B6B"},
-			Error:           lipgloss.AdaptiveColor{Light: "#FFA07A", Dark: "#FFA07A"},
-			Success:         lipgloss.AdaptiveColor{Light: "#45B7D1", Dark: "#45B7D1"},
+			Header:          "#FF6B6B",
+			HabitName:       "#4ECDC4",
+			HabitSelectedFG: "#000000",
+			HabitSelectedBG: "#FFFFFF",
+			Completed:       "#45B7D1",
+			Missed:          "#FFA07A",
+			Untracked:       "#778899",
+			Today:           "#45B7D1",
+			NoteBG:          "#2F4F4F",
+			DBPath:          "#778899",
+			Prompt:          "#FF6B6B",
+			Error:           "#FFA07A",
+			Success:         "#45B7D1",
 		}
 	case "light":
 		return &Theme{
 			Name:            "Light",
 			Author:          "Habits Team",
-			Header:          lipgloss.AdaptiveColor{Light: "#2E86AB", Dark: "#2E86AB"},
-			HabitName:       lipgloss.AdaptiveColor{Light: "#A23B72", Dark: "#A23B72"},
-			HabitSelectedFG: lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#FFFFFF"},
-			HabitSelectedBG: lipgloss.AdaptiveColor{Light: "#2E86AB", Dark: "#2E86AB"},
-			Completed:       lipgloss.AdaptiveColor{Light: "#F18F01", Dark: "#F18F01"},
-			Missed:          lipgloss.AdaptiveColor{Light: "#C73E1D", Dark: "#C73E1D"},
-			Untracked:       lipgloss.AdaptiveColor{Light: "#A0A0A0", Dark: "#A0A0A0"},
-			Today:           lipgloss.AdaptiveColor{Light: "#F18F01", Dark: "#F18F01"},
-			NoteBG:          lipgloss.AdaptiveColor{Light: "#E8E8E8", Dark: "#E8E8E8"},
-			DBPath:          lipgloss.AdaptiveColor{Light: "#A0A0A0", Dark: "#A0A0A0"},
-			Prompt:          lipgloss.AdaptiveColor{Light: "#2E86AB", Dark: "#2E86AB"},
-			Error:           lipgloss.AdaptiveColor{Light: "#C73E1D", Dark: "#C73E1D"},
-			Success:         lipgloss.AdaptiveColor{Light: "#F18F01", Dark: "#F18F01"},
+			Header:          "#2E86AB",
+			HabitName:       "#A23B72",
+			HabitSelectedFG: "#FFFFFF",
+			HabitSelectedBG: "#2E86AB",
+			Completed:       "#F18F01",
+			Missed:          "#C73E1D",
+			Untracked:       "#A0A0A0",
+			Today:           "#F18F01",
+			NoteBG:          "#E8E8E8",
+			DBPath:          "#A0A0A0",
+			Prompt:          "#2E86AB",
+			Error:           "#C73E1D",
+			Success:         "#F18F01",
 		}
 	case "mono":
 		return &Theme{
 			Name:            "Monochrome",
 			Author:          "Habits Team",
-			Header:          lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"},
-			HabitName:       lipgloss.AdaptiveColor{Light: "#333333", Dark: "#CCCCCC"},
-			HabitSelectedFG: lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#000000"},
-			HabitSelectedBG: lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"},
-			Completed:       lipgloss.AdaptiveColor{Light: "#666666", Dark: "#999999"},
-			Missed:          lipgloss.AdaptiveColor{Light: "#999999", Dark: "#666666"},
-			Untracked:       lipgloss.AdaptiveColor{Light: "#CCCCCC", Dark: "#333333"},
-			Today:           lipgloss.AdaptiveColor{Light: "#666666", Dark: "#999999"},
-			NoteBG:          lipgloss.AdaptiveColor{Light: "#F0F0F0", Dark: "#1A1A1A"},
-			DBPath:          lipgloss.AdaptiveColor{Light: "#CCCCCC", Dark: "#333333"},
-			Prompt:          lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"},
-			Error:           lipgloss.AdaptiveColor{Light: "#999999", Dark: "#666666"},
-			Success:         lipgloss.AdaptiveColor{Light: "#666666", Dark: "#999999"},
+			Header:          "#000000",
+			HabitName:       "#333333",
+			HabitSelectedFG: "#FFFFFF",
+			HabitSelectedBG: "#000000",
+			Completed:       "#666666",
+			Missed:          "#999999",
+			Untracked:       "#CCCCCC",
+			Today:           "#666666",
+			NoteBG:          "#F0F0F0",
+			DBPath:          "#CCCCCC",
+			Prompt:          "#000000",
+			Error:           "#999999",
+			Success:         "#666666",
 		}
 	default:
 		return nil

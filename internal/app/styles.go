@@ -42,7 +42,9 @@ func NewStyles(theme *Theme) *Styles {
 
 	// Header components
 	s.Header = lipgloss.NewStyle().
-		Foreground(theme.Header)
+		Foreground(theme.Header).
+		Bold(true).
+		Padding(0, 1)
 
 	// Habit name styling
 	s.HabitName = lipgloss.NewStyle().
@@ -52,7 +54,8 @@ func NewStyles(theme *Theme) *Styles {
 	s.HabitSelected = lipgloss.NewStyle().
 		Foreground(theme.HabitSelectedFG).
 		Background(theme.HabitSelectedBG).
-		Align(lipgloss.Left)
+		Align(lipgloss.Left).
+		Bold(true)
 
 	// Habit states
 	s.Completed = lipgloss.NewStyle().
@@ -114,36 +117,44 @@ func NewWeeklyStyles(theme *Theme) *WeeklyStyles {
 
 		DateHeader: lipgloss.NewStyle().
 			Foreground(theme.HabitSelectedFG).
-			Align(lipgloss.Center),
+			Align(lipgloss.Center).
+			Width(8),
 
 		DayName: lipgloss.NewStyle().
 			Foreground(theme.DBPath).
-			Align(lipgloss.Center),
+			Align(lipgloss.Center).
+			Width(8),
 
 		Cell: lipgloss.NewStyle().
-			Align(lipgloss.Center),
+			Align(lipgloss.Center).
+			Width(8),
 
 		NoteCell: lipgloss.NewStyle().
 			Align(lipgloss.Center).
+			Width(8).
 			Background(theme.NoteBG),
 
 		SelectedCell: lipgloss.NewStyle().
 			Align(lipgloss.Center).
+			Width(8).
 			Background(theme.HabitSelectedBG).
 			Foreground(theme.HabitSelectedFG),
 
 		TodayCell: lipgloss.NewStyle().
 			Align(lipgloss.Center).
+			Width(8).
 			Foreground(theme.Today).
 			Bold(true),
 
 		HabitLabel: lipgloss.NewStyle().
 			Foreground(theme.HabitName).
+			Width(20).
 			Align(lipgloss.Left),
 
 		SelectedHabitLabel: lipgloss.NewStyle().
 			Foreground(theme.HabitSelectedFG).
 			Background(theme.HabitSelectedBG).
+			Width(20).
 			Align(lipgloss.Left),
 	}
 }
@@ -177,21 +188,25 @@ func NewMonthlyStyles(theme *Theme) *MonthlyStyles {
 
 		Cell: lipgloss.NewStyle().
 			Foreground(theme.HabitSelectedFG).
-			Align(lipgloss.Center),
+			Align(lipgloss.Center).
+			Width(4),
 
 		NoteCell: lipgloss.NewStyle().
 			Foreground(theme.HabitSelectedFG).
 			Align(lipgloss.Center).
+			Width(4).
 			Background(theme.NoteBG),
 
 		SelectedCell: lipgloss.NewStyle().
 			Background(theme.HabitSelectedBG).
 			Foreground(theme.HabitSelectedFG).
-			Align(lipgloss.Center),
+			Align(lipgloss.Center).
+			Width(4),
 
 		Empty: lipgloss.NewStyle().
-			Foreground(lipgloss.AdaptiveColor{Light: "#235", Dark: "#888"}).
-			Align(lipgloss.Center),
+			Foreground(lipgloss.Color("#888888")).
+			Align(lipgloss.Center).
+			Width(4),
 
 		Card: lipgloss.NewStyle(),
 
@@ -220,15 +235,18 @@ func NewHeatmapStyles(theme *Theme) *HeatmapStyles {
 
 		HabitName: lipgloss.NewStyle().
 			Foreground(theme.HabitName).
+			Width(20).
 			Align(lipgloss.Left),
 
 		SelectedHabit: lipgloss.NewStyle().
 			Foreground(theme.HabitSelectedFG).
 			Background(theme.HabitSelectedBG).
+			Width(20).
 			Align(lipgloss.Left),
 
 		Completed: lipgloss.NewStyle().
-			Foreground(theme.Completed),
+			Foreground(theme.Completed).
+			Bold(true),
 
 		Missed: lipgloss.NewStyle().
 			Foreground(theme.Missed),
@@ -241,6 +259,7 @@ func NewHeatmapStyles(theme *Theme) *HeatmapStyles {
 
 		DayLabel: lipgloss.NewStyle().
 			Foreground(theme.DBPath).
-			Align(lipgloss.Center),
+			Align(lipgloss.Center).
+			Width(2),
 	}
 }
