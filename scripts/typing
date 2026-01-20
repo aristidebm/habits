@@ -1,0 +1,4 @@
+#/usr/bin/env bash
+
+ttyper -w 100 -l english1000 $@
+habits track-up --date $(date +%F) Typing

@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+
+TRACKED=()
+
+in_tracked() {
+    local search_item=$1
+    for item in "${TRACKED[@]}"; do
+        [[ "$item" == "$search_item" ]] && return 0
+    done
+    return 1
+}
+
+fpdf() {
+    local DIRS=("$@")
+    [[ ${#DIRS[@]} -eq 0 ]] && DIRS=("$HOME/Documents")
+
+    local selection
+    selection=$(rg -g '*.{pdf,epub,djvu}' --files "${DIRS[@]}" |
+        fzf \
+            --multi \
+            --reverse \
+            --prompt="Documents > " \
+            --bind "ctrl-q:select-all+accept"
+    )
+
+    [[ -z "$selection" ]] && return 0
+
+    # Open files
+    printf '%s\n' "$selection" | xargs -d '\n' zathura &>/dev/null &
+
+    # Handle each selected file
+    while IFS= read -r file; do
+        if in_tracked "$file"; then
+            read -e -p "Number of pages> " PAGES < /dev/tty
+            habits track-up --date $(date +%F) --value "$PAGES" Reading
+        fi
+    done <<< "$selection"
+}
+
+fpdf "$@"
