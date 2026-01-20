@@ -201,17 +201,23 @@ func (s *Store) UpsertEntry(ctx context.Context, habitID int, date time.Time, va
 func (s *Store) GetEntry(ctx context.Context, habitID int, date time.Time) (*HabitEntry, error) {
 	dateStr := date.Format("2006-01-02")
 	e := &HabitEntry{}
+	var dateStrFromDB string
 	err := s.db.QueryRowContext(ctx, `
 		SELECT id, habit_id, value, date, created_at
 		FROM habit_entries
 		WHERE habit_id = ? AND date = ?
-	`, habitID, dateStr).Scan(&e.ID, &e.HabitID, &e.Value, &e.Date, &e.CreatedAt)
+	`, habitID, dateStr).Scan(&e.ID, &e.HabitID, &e.Value, &dateStrFromDB, &e.CreatedAt)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get entry: %w", err)
+	}
+
+	e.Date, err = time.Parse("2006-01-02", dateStrFromDB)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse date from database: %w", err)
 	}
 
 	return e, nil
@@ -222,10 +228,11 @@ func (s *Store) ListEntries(ctx context.Context, habitID int, startDate, endDate
 	endStr := endDate.Format("2006-01-02")
 
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, habit_id, value, date, created_at
-		FROM habit_entries
-		WHERE habit_id = ? AND date >= ? AND date <= ?
-		ORDER BY date
+		SELECT e.id, e.habit_id, e.value, e.date, e.created_at,
+		       EXISTS(SELECT 1 FROM habit_notes n WHERE n.habit_entry_id = e.id) as has_note
+		FROM habit_entries e
+		WHERE e.habit_id = ? AND e.date >= ? AND e.date <= ?
+		ORDER BY e.date
 	`, habitID, startStr, endStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list entries: %w", err)
@@ -236,10 +243,12 @@ func (s *Store) ListEntries(ctx context.Context, habitID int, startDate, endDate
 	for rows.Next() {
 		var e HabitEntry
 		var dateStr string
-		if err := rows.Scan(&e.ID, &e.HabitID, &e.Value, &dateStr, &e.CreatedAt); err != nil {
+		var hasNoteInt int
+		if err := rows.Scan(&e.ID, &e.HabitID, &e.Value, &dateStr, &e.CreatedAt, &hasNoteInt); err != nil {
 			return nil, fmt.Errorf("failed to scan entry: %w", err)
 		}
 		e.Date, _ = time.Parse("2006-01-02", dateStr)
+		e.HasNote = hasNoteInt == 1
 		entries = append(entries, e)
 	}
 
@@ -276,6 +285,58 @@ func (s *Store) ListNotes(ctx context.Context, habitEntryID int) ([]HabitNote, e
 	}
 
 	return notes, nil
+}
+
+func (s *Store) GetNote(ctx context.Context, habitEntryID int) (*HabitNote, error) {
+	note := &HabitNote{}
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, habit_entry_id, note, created_at
+		FROM habit_notes
+		WHERE habit_entry_id = ?
+		ORDER BY created_at DESC
+		LIMIT 1
+	`, habitEntryID).Scan(&note.ID, &note.HabitEntryID, &note.Note, &note.CreatedAt)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // No note found
+		}
+		return nil, fmt.Errorf("failed to get note: %w", err)
+	}
+
+	return note, nil
+}
+
+func (s *Store) UpsertNote(ctx context.Context, habitEntryID int, note string) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO habit_notes (habit_entry_id, note)
+		VALUES (?, ?)
+		ON CONFLICT(habit_entry_id) DO UPDATE SET
+			note = excluded.note,
+			created_at = CURRENT_TIMESTAMP
+	`, habitEntryID, note)
+
+	if err != nil {
+		return fmt.Errorf("failed to upsert note: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) DeleteNote(ctx context.Context, habitEntryID int) error {
+	_, err := s.db.ExecContext(ctx, "DELETE FROM habit_notes WHERE habit_entry_id = ?", habitEntryID)
+	if err != nil {
+		return fmt.Errorf("failed to delete note: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) HasNote(ctx context.Context, habitEntryID int) (bool, error) {
+	var count int
+	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM habit_notes WHERE habit_entry_id = ?", habitEntryID).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("failed to check for notes: %w", err)
+	}
+	return count > 0, nil
 }
 
 func (s *Store) Close() error {

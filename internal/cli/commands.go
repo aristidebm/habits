@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"time"
 
 	"example.com/habits/internal/app"
@@ -406,4 +407,177 @@ func newPrevMonthCmd() *cobra.Command {
 	}
 
 	return cmd
+}
+
+// newNoteCmd creates the note command
+func newNoteCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "note <habit> <date>",
+		Short: "Add or edit a note for a habit entry",
+		Long:  `Add or edit a note for a specific habit on a specific date. Date format: YYYY-MM-DD`,
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dbPath, _ := cmd.Flags().GetString("db")
+
+			application, err := app.NewApp(dbPath)
+			if err != nil {
+				return err
+			}
+			defer application.Close()
+
+			if err := application.Migrate(); err != nil {
+				return err
+			}
+
+			habitName := args[0]
+			dateStr := args[1]
+
+			// Parse date
+			date, err := time.Parse("2006-01-02", dateStr)
+			if err != nil {
+				return fmt.Errorf("invalid date format: %s (use YYYY-MM-DD)", dateStr)
+			}
+
+			// Get habit
+			habit, err := application.GetHabitByName(context.Background(), habitName)
+			if err != nil {
+				return fmt.Errorf("failed to get habit: %w", err)
+			}
+			if habit == nil {
+				return fmt.Errorf("habit '%s' not found", habitName)
+			}
+
+			// Check if entry exists, create if needed
+			entry, err := application.GetEntry(context.Background(), habit.ID, date)
+			if err != nil {
+				return fmt.Errorf("failed to check entry: %w", err)
+			}
+
+			var entryID int
+			if entry == nil {
+				// Create a minimal entry for the note
+				if err := application.UpsertEntry(context.Background(), habit.ID, date, 0); err != nil {
+					return fmt.Errorf("failed to create entry: %w", err)
+				}
+				// Get the entry again to get the ID
+				entry, err = application.GetEntry(context.Background(), habit.ID, date)
+				if err != nil || entry == nil {
+					return fmt.Errorf("failed to get created entry")
+				}
+			}
+			entryID = entry.ID
+
+			// Get existing note
+			existingNote, err := application.GetNote(context.Background(), entryID)
+			if err != nil {
+				return fmt.Errorf("failed to get existing note: %w", err)
+			}
+
+			currentNote := ""
+			if existingNote != nil {
+				currentNote = existingNote.Note
+			}
+
+			// Create temp file with context
+			tmpFile, err := os.CreateTemp("", "habit_note_*.txt")
+			if err != nil {
+				return fmt.Errorf("failed to create temp file: %w", err)
+			}
+			defer os.Remove(tmpFile.Name())
+			defer tmpFile.Close()
+
+			// Write header and existing note
+			header := fmt.Sprintf("# Habit: %s\n# Date: %s\n# Goal: %.0f\n# Status: %s\n\n",
+				habit.Name,
+				date.Format("2006-01-02"),
+				habit.Goal,
+				getEntryStatus(habit, entry),
+			)
+
+			if _, err := tmpFile.WriteString(header); err != nil {
+				return fmt.Errorf("failed to write header: %w", err)
+			}
+
+			if currentNote != "" {
+				if _, err := tmpFile.WriteString(currentNote); err != nil {
+					return fmt.Errorf("failed to write existing note: %w", err)
+				}
+			}
+
+			tmpFile.Close()
+
+			// Launch editor
+			editor := os.Getenv("EDITOR")
+			if editor == "" {
+				editor = "nano"
+			}
+
+			editorCmd := exec.Command(editor, tmpFile.Name())
+			editorCmd.Stdin = os.Stdin
+			editorCmd.Stdout = os.Stdout
+			editorCmd.Stderr = os.Stderr
+
+			if err := editorCmd.Run(); err != nil {
+				return fmt.Errorf("editor exited with error: %w", err)
+			}
+
+			// Read the edited content
+			content, err := os.ReadFile(tmpFile.Name())
+			if err != nil {
+				return fmt.Errorf("failed to read edited file: %w", err)
+			}
+
+			// Extract note content
+			lines := strings.Split(string(content), "\n")
+			noteContent := ""
+			inNoteSection := false
+
+			for _, line := range lines {
+				if strings.HasPrefix(line, "#") || strings.TrimSpace(line) == "" {
+					if inNoteSection {
+						noteContent += line + "\n"
+					}
+				} else {
+					inNoteSection = true
+					noteContent += line + "\n"
+				}
+			}
+
+			noteContent = strings.TrimSpace(noteContent)
+
+			// Save the note
+			if err := application.UpsertNote(context.Background(), entryID, noteContent); err != nil {
+				return fmt.Errorf("failed to save note: %w", err)
+			}
+
+			fmt.Printf("Note saved for habit '%s' on %s\n", habitName, dateStr)
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+// getEntryStatus returns a status string for an entry
+func getEntryStatus(habit *app.Habit, entry *app.HabitEntry) string {
+	if entry == nil {
+		return "not tracked"
+	}
+
+	switch habit.Type {
+	case app.HabitTypeBit:
+		if entry.Value == 1 {
+			return "completed"
+		}
+		return "not completed"
+	case app.HabitTypeCount, app.HabitTypeFloat:
+		if entry.Value == 0 {
+			return "skipped"
+		}
+		if habit.Goal > 0 && entry.Value >= habit.Goal {
+			return "goal met"
+		}
+		return fmt.Sprintf("%.1f", entry.Value)
+	}
+	return "unknown"
 }

@@ -18,6 +18,7 @@ type HeatmapView struct {
 	selectedHabitStyle lipgloss.Style
 	completedStyle     lipgloss.Style
 	missedStyle        lipgloss.Style
+	noteStyle          lipgloss.Style
 	futureStyle        lipgloss.Style
 	dayLabelStyle      lipgloss.Style
 }
@@ -47,6 +48,8 @@ func NewHeatmapView(calendar *Calendar) *HeatmapView {
 			Bold(true),
 		missedStyle: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("9")),
+		noteStyle: lipgloss.NewStyle().
+			Background(lipgloss.Color("17")),
 		futureStyle: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("8")),
 		dayLabelStyle: lipgloss.NewStyle().
@@ -161,21 +164,29 @@ func (h *HeatmapView) getHeatmapCell(habit Habit, date time.Time, isSelected boo
 		}
 	}
 
+	// Check if this cell has notes
+	hasNote := h.calendar.HasEntryNote(habit.Name, date)
+
 	// Apply styling based on symbol type
 	var cell string
-	switch symbol {
-	case h.calendar.getCompletedSymbol(ViewModeHeatmap):
-		cell = h.completedStyle.Render(symbol)
-	case h.calendar.getMissedSymbol(ViewModeHeatmap):
-		cell = h.missedStyle.Render(symbol)
-	case h.calendar.getUntrackedSymbol(ViewModeHeatmap):
-		cell = h.futureStyle.Render(symbol)
-	default:
-		// For count/float values, apply completed styling
-		if habit.Type == HabitTypeCount || habit.Type == HabitTypeFloat {
+	if hasNote {
+		// Notes override other styling
+		cell = h.noteStyle.Render(symbol)
+	} else {
+		switch symbol {
+		case h.calendar.getCompletedSymbol(ViewModeHeatmap):
 			cell = h.completedStyle.Render(symbol)
-		} else {
-			cell = symbol
+		case h.calendar.getMissedSymbol(ViewModeHeatmap):
+			cell = h.missedStyle.Render(symbol)
+		case h.calendar.getUntrackedSymbol(ViewModeHeatmap):
+			cell = h.futureStyle.Render(symbol)
+		default:
+			// For count/float values, apply completed styling
+			if habit.Type == HabitTypeCount || habit.Type == HabitTypeFloat {
+				cell = h.completedStyle.Render(symbol)
+			} else {
+				cell = symbol
+			}
 		}
 	}
 

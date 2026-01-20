@@ -17,6 +17,7 @@ type WeeklyView struct {
 	dateHeaderStyle         lipgloss.Style
 	dayNameStyle            lipgloss.Style
 	cellStyle               lipgloss.Style
+	noteCellStyle           lipgloss.Style
 	selectedCellStyle       lipgloss.Style
 	todayStyle              lipgloss.Style
 	habitLabelStyle         lipgloss.Style
@@ -45,6 +46,10 @@ func NewWeeklyView(calendar *Calendar) *WeeklyView {
 		cellStyle: lipgloss.NewStyle().
 			Align(lipgloss.Center).
 			Width(8),
+		noteCellStyle: lipgloss.NewStyle().
+			Align(lipgloss.Center).
+			Width(8).
+			Background(lipgloss.Color("17")),
 		selectedCellStyle: lipgloss.NewStyle().
 			Align(lipgloss.Center).
 			Width(8).
@@ -202,8 +207,12 @@ func (w *WeeklyView) RenderContent() string {
 				date.Month() == w.calendar.selectedDate.Month() &&
 				date.Day() == w.calendar.selectedDate.Day()
 
+			hasNote := w.calendar.HasEntryNote(habit.Name, date)
+
 			if isSelected {
 				row += w.selectedCellStyle.Render(cellValue)
+			} else if hasNote {
+				row += w.noteCellStyle.Render(cellValue)
 			} else {
 				row += w.cellStyle.Render(cellValue)
 			}

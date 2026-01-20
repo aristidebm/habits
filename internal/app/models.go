@@ -53,6 +53,7 @@ type HabitEntry struct {
 	Value     float64
 	Date      time.Time
 	CreatedAt time.Time
+	HasNote   bool // Whether this entry has any notes attached
 }
 
 type HabitNote struct {

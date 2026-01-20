@@ -68,6 +68,7 @@ type HabitEntry struct {
 	Completed bool   // for bit type
 	Value     string // for count/float type, "-" for skipped
 	Pending   bool
+	HasNote   bool // Whether this entry has notes
 }
 
 // Calendar is the main calendar component that manages habits and their entries
@@ -86,6 +87,13 @@ type Calendar struct {
 	viewStartDate time.Time // For weekly view - first day of visible week
 	viewMonth     time.Time // For monthly view - first day of visible month
 
+	// Pending data (saved on :write)
+	pendingEntries map[string]map[time.Time]HabitEntry // habitName -> date -> entry
+	PendingNotes   map[string]map[time.Time]string     // habitName -> date -> note
+
+	// Callbacks
+	hasNoteFunc func(habitID int, date time.Time) bool // Check if entry has notes in database
+
 	// UI
 	width    int
 	height   int
@@ -99,22 +107,25 @@ type Calendar struct {
 }
 
 // NewCalendar creates a new calendar component
-func NewCalendar(habits []Habit, config *app.Config) *Calendar {
+func NewCalendar(habits []Habit, config *app.Config, hasNoteFunc func(habitID int, date time.Time) bool) *Calendar {
 	now := time.Now()
 
 	// Month start
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 
 	cal := &Calendar{
-		habits:        habits,
-		entries:       make(map[string]map[time.Time]HabitEntry),
-		config:        config,
-		viewMode:      ViewModeWeekly,
-		selectedDate:  now,
-		selectedHabit: 0,
-		viewMonth:     monthStart,
-		width:         80,
-		height:        24,
+		habits:         habits,
+		entries:        make(map[string]map[time.Time]HabitEntry),
+		pendingEntries: make(map[string]map[time.Time]HabitEntry),
+		PendingNotes:   make(map[string]map[time.Time]string),
+		config:         config,
+		hasNoteFunc:    hasNoteFunc,
+		viewMode:       ViewModeWeekly,
+		selectedDate:   now,
+		selectedHabit:  0,
+		viewMonth:      monthStart,
+		width:          80,
+		height:         24,
 	}
 
 	// Calculate view start to center today horizontally (after width is set)
@@ -450,6 +461,11 @@ func (c *Calendar) View() string {
 
 // SetEntry sets an entry for a habit on a specific date
 func (c *Calendar) SetEntry(habitName string, date time.Time, completed bool, value string, pending bool) {
+	c.SetEntryWithNote(habitName, date, completed, value, pending, false)
+}
+
+// SetEntryWithNote sets an entry for a habit on a specific date with note information
+func (c *Calendar) SetEntryWithNote(habitName string, date time.Time, completed bool, value string, pending bool, hasNote bool) {
 	if c.entries[habitName] == nil {
 		c.entries[habitName] = make(map[time.Time]HabitEntry)
 	}
@@ -461,6 +477,7 @@ func (c *Calendar) SetEntry(habitName string, date time.Time, completed bool, va
 		Completed: completed,
 		Value:     value,
 		Pending:   pending,
+		HasNote:   hasNote,
 	}
 }
 
@@ -475,6 +492,35 @@ func (c *Calendar) GetEntry(habitName string, date time.Time) (HabitEntry, bool)
 	dateKey := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
 	entry, exists := habitEntries[dateKey]
 	return entry, exists
+}
+
+// HasEntryNote checks if a habit entry for the given date has any notes
+func (c *Calendar) HasEntryNote(habitName string, date time.Time) bool {
+	// Check pending notes first
+	if c.PendingNotes != nil {
+		if habitNotes, exists := c.PendingNotes[habitName]; exists {
+			if note, hasNote := habitNotes[date]; hasNote && note != "" {
+				return true
+			}
+		}
+	}
+
+	// Check stored entry information
+	if entry, exists := c.GetEntry(habitName, date); exists {
+		return entry.HasNote
+	}
+
+	// Fallback to database check if entry not loaded yet
+	if c.hasNoteFunc != nil {
+		// Find habit ID by name
+		for _, habit := range c.habits {
+			if habit.Name == habitName {
+				return c.hasNoteFunc(habit.ID, date)
+			}
+		}
+	}
+
+	return false
 }
 
 // GetCellValue returns the display value for a habit on a specific date for the given view mode
@@ -717,12 +763,17 @@ func (c *Calendar) ClearPendingEntries() {
 	}
 }
 
-// WritePendingHabits writes all pending habits and entries to database via Store
+// ClearPendingNotes clears all pending notes
+func (c *Calendar) ClearPendingNotes() {
+	c.PendingNotes = make(map[string]map[time.Time]string)
+}
+
+// WritePendingHabits writes all pending habits, entries, and notes to database via Store
 func (c *Calendar) WritePendingHabits(createHabitsBulk func(habits []struct {
 	Name      string
 	HabitType string
 	Goal      float64
-}) ([]int, error), upsertEntry func(habitID int, date time.Time, value float64) error) error {
+}) ([]int, error), upsertEntry func(habitID int, date time.Time, value float64) error, upsertNote func(habitEntryID int, note string) error, getEntryID func(habitID int, date time.Time) (int, error)) error {
 	var pendingHabits []Habit
 	for _, h := range c.habits {
 		if h.Pending {
@@ -730,7 +781,16 @@ func (c *Calendar) WritePendingHabits(createHabitsBulk func(habits []struct {
 		}
 	}
 
-	if len(pendingHabits) == 0 && len(c.GetPendingEntries()) == 0 {
+	// Check if there are any pending notes
+	hasPendingNotes := false
+	for _, habitNotes := range c.PendingNotes {
+		if len(habitNotes) > 0 {
+			hasPendingNotes = true
+			break
+		}
+	}
+
+	if len(pendingHabits) == 0 && len(c.GetPendingEntries()) == 0 && !hasPendingNotes {
 		return nil
 	}
 
@@ -788,7 +848,51 @@ func (c *Calendar) WritePendingHabits(createHabitsBulk func(habits []struct {
 		}
 	}
 
+	// Write pending notes
+	for habitName, habitNotes := range c.PendingNotes {
+		for date, note := range habitNotes {
+			if note == "" {
+				continue // Skip empty notes
+			}
+
+			// Find habit ID
+			var habitID int
+			for _, h := range c.habits {
+				if h.Name == habitName {
+					habitID = h.ID
+					break
+				}
+			}
+
+			if habitID == 0 {
+				continue // Habit not found
+			}
+
+			// Get entry ID using callback, create entry if it doesn't exist
+			entryID, err := getEntryID(habitID, date)
+			if err != nil {
+				return fmt.Errorf("failed to get entry ID for habit %s on %s: %w", habitName, date.Format("2006-01-02"), err)
+			}
+			if entryID == 0 {
+				// Create a minimal entry for the note (skipped entry)
+				if err := upsertEntry(habitID, date, 0); err != nil {
+					return fmt.Errorf("failed to create entry for note on habit %s on %s: %w", habitName, date.Format("2006-01-02"), err)
+				}
+				// Now get the entry ID again
+				entryID, err = getEntryID(habitID, date)
+				if err != nil || entryID == 0 {
+					return fmt.Errorf("failed to get entry ID after creation for habit %s on %s: %w", habitName, date.Format("2006-01-02"), err)
+				}
+			}
+
+			if err := upsertNote(entryID, note); err != nil {
+				return fmt.Errorf("failed to upsert note for habit %s on %s: %w", habitName, date.Format("2006-01-02"), err)
+			}
+		}
+	}
+
 	c.ClearPendingEntries()
+	c.ClearPendingNotes()
 
 	return nil
 }

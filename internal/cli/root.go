@@ -31,6 +31,7 @@ func NewRootCmd() *cobra.Command {
 	cmd.AddCommand(newTrackDownCmd())
 	cmd.AddCommand(newExportCmd())
 	cmd.AddCommand(newEditCmd())
+	cmd.AddCommand(newNoteCmd())
 
 	return cmd
 }

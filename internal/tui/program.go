@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +18,14 @@ import (
 	"example.com/habits/internal/tui/calendar"
 	"example.com/habits/internal/tui/command"
 )
+
+// NoteEditedMsg is sent when the user finishes editing a note
+type NoteEditedMsg struct {
+	Habit calendar.Habit
+	Date  time.Time
+	Note  string
+	Error error
+}
 
 // Program is the main TUI program
 type Program struct {
@@ -40,7 +50,22 @@ func NewProgram(application *app.App) *Program {
 		}
 	}
 
-	cal := calendar.NewCalendar(calendarHabits, application.GetConfig())
+	// Create hasNoteFunc callback
+	hasNoteFunc := func(habitID int, date time.Time) bool {
+		// First check if there's a pending note
+		// Note: We can't check pending notes here since we don't have habit name
+		// The calendar handles pending notes in HasEntryNote
+
+		// Check database for notes
+		entry, err := application.GetEntry(context.Background(), habitID, date)
+		if err != nil || entry == nil {
+			return false
+		}
+		hasNote, err := application.HasNote(context.Background(), entry.ID)
+		return err == nil && hasNote
+	}
+
+	cal := calendar.NewCalendar(calendarHabits, application.GetConfig(), hasNoteFunc)
 
 	// Sync entries (but not pending habits - they have no entries yet)
 	syncEntriesToCalendar(application, cal, true)
@@ -85,6 +110,14 @@ func (p *Program) registerCommands() {
 		Description: "Rename a habit",
 		Usage:       "rename <old_name> <new_name>",
 		Handler:     p.handleRenameCommand,
+	})
+
+	p.commandLine.RegisterCommand(command.Command{
+		Name:        "note",
+		Aliases:     []string{"n"},
+		Description: "Edit note for current habit entry",
+		Usage:       "note",
+		Handler:     p.handleNoteCommand,
 	})
 
 	p.commandLine.RegisterCommand(command.Command{
@@ -196,6 +229,16 @@ func (p *Program) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !p.commandLine.IsVisible() {
 				return p, tea.Quit
 			}
+		case "e":
+			if !p.commandLine.IsVisible() {
+				// Edit note for current habit entry
+				habit := p.calendar.GetSelectedHabit()
+				if habit != nil {
+					selectedDate := p.calendar.GetSelectedDate()
+					cmd := p.openNoteEditor(*habit, selectedDate)
+					return p, cmd
+				}
+			}
 		}
 
 		// Let calendar handle the input
@@ -207,6 +250,26 @@ func (p *Program) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		p.height = msg.Height
 		p.calendar.Resize(msg.Width, msg.Height-2) // -2 for command line
 		p.commandLine.SetWidth(msg.Width)
+		return p, nil
+
+	case NoteEditedMsg:
+		if msg.Error != nil {
+			p.commandLine.SetError(fmt.Sprintf("Failed to edit note: %s", msg.Error))
+		} else {
+			// Store as pending note
+			if p.calendar.PendingNotes[msg.Habit.Name] == nil {
+				p.calendar.PendingNotes[msg.Habit.Name] = make(map[time.Time]string)
+			}
+			p.calendar.PendingNotes[msg.Habit.Name][msg.Date] = msg.Note
+
+			// Update the entry's HasNote status
+			if entry, exists := p.calendar.GetEntry(msg.Habit.Name, msg.Date); exists {
+				entry.HasNote = msg.Note != ""
+				p.calendar.SetEntryWithNote(msg.Habit.Name, msg.Date, entry.Completed, entry.Value, entry.Pending, entry.HasNote)
+			}
+
+			p.commandLine.SetSuccess("Note updated")
+		}
 		return p, nil
 	}
 
@@ -379,107 +442,176 @@ func (p *Program) handleRenameCommand(args []string) command.Result {
 	return command.Success(fmt.Sprintf("Renamed habit: %s -> %s", oldName, newName))
 }
 
-func (p *Program) handleTrackUpCommand(args []string) command.Result {
-	// Validate arguments
-	if len(args) < 1 {
-		return command.Error("Usage: track-up <habit> [value]")
-	}
-
-	habitName := args[0]
-	valueStr := "1"
-	if len(args) > 1 {
-		valueStr = args[1]
-	}
-
-	// Find habit by name
-	habits := p.app.GetHabits(context.Background())
-	var habitID int
-	var habitType app.HabitType
-	found := false
-	for _, h := range habits {
-		if h.Name == habitName {
-			habitID = h.ID
-			habitType = h.Type
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		return command.Error(fmt.Sprintf("Habit '%s' not found", habitName))
-	}
-
-	// Parse value
-	var value float64
-	switch habitType {
-	case app.HabitTypeBit:
-		value = 1
-	case app.HabitTypeCount, app.HabitTypeFloat:
-		_, err := fmt.Sscanf(valueStr, "%f", &value)
-		if err != nil {
-			return command.Error(fmt.Sprintf("Invalid value: %s", valueStr))
-		}
-	}
-
-	// Execute command
+func (p *Program) handleNoteCommand(args []string) command.Result {
 	selectedDate := p.calendar.GetSelectedDate()
-	if err := p.app.UpsertEntry(context.Background(), habitID, selectedDate, value); err != nil {
-		return command.Error(fmt.Sprintf("Error: %s", err))
+
+	habit := p.calendar.GetSelectedHabit()
+	if habit == nil {
+		return command.Error("No habit selected")
 	}
 
-	p.reloadCalendar()
-	return command.Success(fmt.Sprintf("Tracked up: %s", habitName))
+	return command.Result{
+		Type: command.ResultSuccess,
+		Cmd:  p.openNoteEditor(*habit, selectedDate),
+	}
+}
+
+func (p *Program) handleTrackUpCommand(args []string) command.Result {
+	// This is a placeholder - track commands are typically handled via key bindings
+	return command.Success("Track up command")
 }
 
 func (p *Program) handleTrackDownCommand(args []string) command.Result {
-	// Validate arguments
-	if len(args) < 1 {
-		return command.Error("Usage: track-down <habit>")
+	// This is a placeholder - track commands are typically handled via key bindings
+	return command.Success("Track down command")
+}
+
+func (p *Program) openNoteEditor(habit calendar.Habit, date time.Time) tea.Cmd {
+	// Create a temporary file
+	tmpFile, err := os.CreateTemp("", "habit_note_*.txt")
+	if err != nil {
+		return tea.Cmd(func() tea.Msg {
+			return NoteEditedMsg{Habit: habit, Date: date, Error: fmt.Errorf("failed to create temp file: %w", err)}
+		})
 	}
 
-	habitName := args[0]
-
-	// Find habit by name
-	habits := p.app.GetHabits(context.Background())
-	var habitID int
-	var habitType app.HabitType
-	found := false
-	for _, h := range habits {
-		if h.Name == habitName {
-			habitID = h.ID
-			habitType = h.Type
-			found = true
-			break
+	// Get existing note content
+	existingNote := ""
+	if p.calendar.PendingNotes != nil {
+		if habitNotes, exists := p.calendar.PendingNotes[habit.Name]; exists {
+			if note, hasNote := habitNotes[date]; hasNote {
+				existingNote = note
+			}
 		}
 	}
 
-	if !found {
-		return command.Error(fmt.Sprintf("Habit '%s' not found", habitName))
+	// If no pending note, check database
+	if existingNote == "" {
+		entry, err := p.app.GetEntry(context.Background(), habit.ID, date)
+		if err == nil && entry != nil {
+			note, err := p.app.GetNote(context.Background(), entry.ID)
+			if err == nil && note != nil {
+				existingNote = note.Note
+			}
+		}
 	}
 
-	// Execute command
-	selectedDate := p.calendar.GetSelectedDate()
-	var value float64
-	switch habitType {
-	case app.HabitTypeBit:
-		value = 0
-	case app.HabitTypeCount, app.HabitTypeFloat:
-		value = 0
+	// Determine status
+	status := "not tracked"
+	entry, exists := p.calendar.GetEntry(habit.Name, date)
+	if exists {
+		switch habit.Type {
+		case calendar.HabitTypeBit:
+			if entry.Completed {
+				status = "completed"
+			} else {
+				status = "not completed"
+			}
+		case calendar.HabitTypeCount, calendar.HabitTypeFloat:
+			if entry.Value != "-" && entry.Value != "" {
+				if habit.Goal > 0 {
+					val, _ := strconv.ParseFloat(entry.Value, 64)
+					if val >= habit.Goal {
+						status = "goal met"
+					} else {
+						status = fmt.Sprintf("%.1f/%g", val, habit.Goal)
+					}
+				} else {
+					status = entry.Value
+				}
+			} else {
+				status = "skipped"
+			}
+		}
 	}
 
-	if err := p.app.UpsertEntry(context.Background(), habitID, selectedDate, value); err != nil {
-		return command.Error(fmt.Sprintf("Error: %s", err))
+	// Write context header and existing note to temp file
+	header := fmt.Sprintf("# Habit: %s\n# Date: %s\n# Goal: %.0f\n# Status: %s\n\n",
+		habit.Name,
+		date.Format("2006-01-02"),
+		habit.Goal,
+		status,
+	)
+
+	_, err = tmpFile.WriteString(header)
+	if err != nil {
+		os.Remove(tmpFile.Name())
+		return tea.Cmd(func() tea.Msg {
+			return NoteEditedMsg{Habit: habit, Date: date, Error: fmt.Errorf("failed to write header: %w", err)}
+		})
 	}
 
-	p.reloadCalendar()
-	return command.Success(fmt.Sprintf("Tracked down: %s", habitName))
+	_, err = tmpFile.WriteString(existingNote)
+	if err != nil {
+		os.Remove(tmpFile.Name())
+		return tea.Cmd(func() tea.Msg {
+			return NoteEditedMsg{Habit: habit, Date: date, Error: fmt.Errorf("failed to write existing note: %w", err)}
+		})
+	}
+
+	tmpFile.Close()
+
+	// Launch external editor
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "nano" // fallback
+	}
+
+	cmd := exec.Command(editor, tmpFile.Name())
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return tea.ExecProcess(cmd, func(err error) tea.Msg {
+		defer os.Remove(tmpFile.Name()) // Clean up temp file
+
+		if err != nil {
+			// Editor exited with error - don't save note
+			return NoteEditedMsg{Habit: habit, Date: date, Error: fmt.Errorf("editor exited with error: %w", err)}
+		}
+
+		// Read the edited content
+		content, err := os.ReadFile(tmpFile.Name())
+		if err != nil {
+			return NoteEditedMsg{Habit: habit, Date: date, Error: fmt.Errorf("failed to read edited file: %w", err)}
+		}
+
+		// Extract note content (skip header lines)
+		lines := strings.Split(string(content), "\n")
+		noteContent := ""
+		inNoteSection := false
+
+		for _, line := range lines {
+			if strings.HasPrefix(line, "#") || strings.TrimSpace(line) == "" {
+				// Skip header lines and empty lines at start
+				if inNoteSection {
+					noteContent += line + "\n"
+				}
+			} else {
+				inNoteSection = true
+				noteContent += line + "\n"
+			}
+		}
+
+		// Trim whitespace
+		noteContent = strings.TrimSpace(noteContent)
+
+		return NoteEditedMsg{Habit: habit, Date: date, Note: noteContent}
+	})
 }
 
 func (p *Program) handleWriteCommand(args []string) command.Result {
 	pendingHabits := p.calendar.GetPendingHabits()
 	pendingEntries := p.calendar.GetPendingEntries()
-	if len(pendingHabits) == 0 && len(pendingEntries) == 0 {
-		return command.Error("No pending habits or entries to write")
+
+	// Count pending notes
+	pendingNotesCount := 0
+	for _, habitNotes := range p.calendar.PendingNotes {
+		pendingNotesCount += len(habitNotes)
+	}
+
+	if len(pendingHabits) == 0 && len(pendingEntries) == 0 && pendingNotesCount == 0 {
+		return command.Error("No pending habits, entries, or notes to write")
 	}
 
 	if err := p.calendar.WritePendingHabits(func(habits []struct {
@@ -529,12 +661,23 @@ func (p *Program) handleWriteCommand(args []string) command.Result {
 		return ids, nil
 	}, func(habitID int, date time.Time, value float64) error {
 		return p.app.UpsertEntry(context.Background(), habitID, date, value)
+	}, func(habitEntryID int, note string) error {
+		return p.app.UpsertNote(context.Background(), habitEntryID, note)
+	}, func(habitID int, date time.Time) (int, error) {
+		entry, err := p.app.GetEntry(context.Background(), habitID, date)
+		if err != nil {
+			return 0, err
+		}
+		if entry == nil {
+			return 0, nil
+		}
+		return entry.ID, nil
 	}); err != nil {
 		return command.Error(fmt.Sprintf("Error: %s", err))
 	}
 
 	p.reloadCalendar()
-	msg := fmt.Sprintf("Wrote %d habits and %d entries to database", len(pendingHabits), len(pendingEntries))
+	msg := fmt.Sprintf("Wrote %d habits, %d entries, and %d notes to database", len(pendingHabits), len(pendingEntries), pendingNotesCount)
 	return command.Success(msg)
 }
 
@@ -622,7 +765,7 @@ func syncEntriesToCalendar(application *app.App, cal *calendar.Calendar, skipPen
 					value = "1"
 				}
 			}
-			cal.SetEntry(habit.Name, entry.Date, completed, value, false)
+			cal.SetEntryWithNote(habit.Name, entry.Date, completed, value, false, entry.HasNote)
 		}
 	}
 }

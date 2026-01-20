@@ -17,6 +17,7 @@ type MonthlyView struct {
 	habitNameStyle     lipgloss.Style
 	selectedHabitStyle lipgloss.Style
 	cellStyle          lipgloss.Style
+	noteCellStyle      lipgloss.Style
 	selectedCellStyle  lipgloss.Style
 	emptyStyle         lipgloss.Style
 	cardStyle          lipgloss.Style
@@ -44,6 +45,11 @@ func NewMonthlyView(calendar *Calendar) *MonthlyView {
 			Foreground(lipgloss.Color("15")).
 			Align(lipgloss.Center).
 			Width(4),
+		noteCellStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("15")).
+			Align(lipgloss.Center).
+			Width(4).
+			Background(lipgloss.Color("17")),
 		selectedCellStyle: lipgloss.NewStyle().
 			Background(lipgloss.Color("240")).
 			Foreground(lipgloss.Color("15")).
@@ -174,9 +180,12 @@ func (m *MonthlyView) renderHabitCard(habit Habit, isSelected bool) string {
 					isSelected
 
 				cellValue := m.getCompactCellValue(habit, date)
+				hasNote := m.calendar.HasEntryNote(habit.Name, date)
 
 				if isSelectedDate {
 					weekRow += m.selectedCellStyle.Render(cellValue)
+				} else if hasNote {
+					weekRow += m.noteCellStyle.Render(cellValue)
 				} else {
 					weekRow += m.cellStyle.Render(cellValue)
 				}
