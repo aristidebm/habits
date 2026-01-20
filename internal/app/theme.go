@@ -114,19 +114,19 @@ func (tm *ThemeManager) getBuiltInTheme(name string) *Theme {
 			Name:   "Default",
 			Author: "Habits Team",
 			Colors: ThemeColors{
-				Header:          "12",  // Bright blue
-				HabitName:       "14",  // Bright cyan
-				HabitSelectedFG: "15",  // Bright white
-				HabitSelectedBG: "240", // Gray
-				Completed:       "10",  // Bright green
-				Missed:          "9",   // Bright red
-				Untracked:       "8",   // Gray
-				Today:           "11",  // Bright yellow
-				NoteBG:          "17",  // Dark blue
-				DBPath:          "12",  // Bright blue (changed for testing)
-				Prompt:          "12",  // Bright blue
-				Error:           "9",   // Bright red
-				Success:         "10",  // Bright green
+				Header:          "#87CEEB", // Sky blue
+				HabitName:       "#00CED1", // Dark turquoise
+				HabitSelectedFG: "#FFFFFF", // White
+				HabitSelectedBG: "#696969", // Dim gray
+				Completed:       "#32CD32", // Lime green
+				Missed:          "#DC143C", // Crimson
+				Untracked:       "#708090", // Slate gray
+				Today:           "#32CD32", // Lime green
+				NoteBG:          "#2F4F4F", // Dark slate gray
+				DBPath:          "#708090", // Slate gray
+				Prompt:          "#87CEEB", // Sky blue
+				Error:           "#DC143C", // Crimson
+				Success:         "#32CD32", // Lime green
 			},
 		}
 	case "dark":
@@ -134,19 +134,19 @@ func (tm *ThemeManager) getBuiltInTheme(name string) *Theme {
 			Name:   "Dark",
 			Author: "Habits Team",
 			Colors: ThemeColors{
-				Header:          "13", // Bright magenta
-				HabitName:       "14", // Bright cyan
-				HabitSelectedFG: "0",  // Black
-				HabitSelectedBG: "15", // Bright white
-				Completed:       "12", // Bright blue
-				Missed:          "11", // Bright yellow
-				Untracked:       "8",  // Gray
-				Today:           "12", // Bright blue
-				NoteBG:          "17", // Dark blue
-				DBPath:          "8",  // Gray
-				Prompt:          "13", // Bright magenta
-				Error:           "11", // Bright yellow
-				Success:         "12", // Bright blue
+				Header:          "#FF6B6B", // Coral red
+				HabitName:       "#4ECDC4", // Medium turquoise
+				HabitSelectedFG: "#000000", // Black
+				HabitSelectedBG: "#FFFFFF", // White
+				Completed:       "#45B7D1", // Sky blue
+				Missed:          "#FFA07A", // Light salmon
+				Untracked:       "#778899", // Light slate gray
+				Today:           "#45B7D1", // Sky blue
+				NoteBG:          "#2F4F4F", // Dark slate gray
+				DBPath:          "#778899", // Light slate gray
+				Prompt:          "#FF6B6B", // Coral red
+				Error:           "#FFA07A", // Light salmon
+				Success:         "#45B7D1", // Sky blue
 			},
 		}
 	case "light":
@@ -154,19 +154,19 @@ func (tm *ThemeManager) getBuiltInTheme(name string) *Theme {
 			Name:   "Light",
 			Author: "Habits Team",
 			Colors: ThemeColors{
-				Header:          "4",  // Blue
-				HabitName:       "5",  // Magenta
-				HabitSelectedFG: "15", // Bright white
-				HabitSelectedBG: "4",  // Blue
-				Completed:       "3",  // Yellow
-				Missed:          "1",  // Red
-				Untracked:       "7",  // White/gray
-				Today:           "3",  // Yellow
-				NoteBG:          "7",  // White/gray
-				DBPath:          "7",  // White/gray
-				Prompt:          "4",  // Blue
-				Error:           "1",  // Red
-				Success:         "3",  // Yellow
+				Header:          "#2E86AB", // Steel blue
+				HabitName:       "#A23B72", // Medium violet red
+				HabitSelectedFG: "#FFFFFF", // White
+				HabitSelectedBG: "#2E86AB", // Steel blue
+				Completed:       "#F18F01", // Orange
+				Missed:          "#C73E1D", // Firebrick
+				Untracked:       "#A0A0A0", // Dark gray
+				Today:           "#F18F01", // Orange
+				NoteBG:          "#E8E8E8", // Light gray
+				DBPath:          "#A0A0A0", // Dark gray
+				Prompt:          "#2E86AB", // Steel blue
+				Error:           "#C73E1D", // Firebrick
+				Success:         "#F18F01", // Orange
 			},
 		}
 	case "mono":
@@ -174,19 +174,19 @@ func (tm *ThemeManager) getBuiltInTheme(name string) *Theme {
 			Name:   "Monochrome",
 			Author: "Habits Team",
 			Colors: ThemeColors{
-				Header:          "0",  // Black
-				HabitName:       "7",  // White
-				HabitSelectedFG: "15", // Bright white
-				HabitSelectedBG: "0",  // Black
-				Completed:       "8",  // Gray
-				Missed:          "7",  // White
-				Untracked:       "8",  // Gray
-				Today:           "8",  // Gray
-				NoteBG:          "7",  // White
-				DBPath:          "8",  // Gray
-				Prompt:          "0",  // Black
-				Error:           "7",  // White
-				Success:         "8",  // Gray
+				Header:          "#000000", // Black
+				HabitName:       "#333333", // Dark gray
+				HabitSelectedFG: "#FFFFFF", // White
+				HabitSelectedBG: "#000000", // Black
+				Completed:       "#666666", // Medium gray
+				Missed:          "#999999", // Light gray
+				Untracked:       "#CCCCCC", // Very light gray
+				Today:           "#666666", // Medium gray
+				NoteBG:          "#F0F0F0", // Very light gray
+				DBPath:          "#CCCCCC", // Very light gray
+				Prompt:          "#000000", // Black
+				Error:           "#999999", // Light gray
+				Success:         "#666666", // Medium gray
 			},
 		}
 	default:
