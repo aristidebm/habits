@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"io"
+	"log"
 
 	_ "github.com/mattn/go-sqlite3"
 	goose "github.com/pressly/goose/v3"
@@ -29,6 +31,8 @@ func Migrate(db *sql.DB) error {
 	if err := goose.SetDialect("sqlite3"); err != nil {
 		return fmt.Errorf("failed to set dialect: %w", err)
 	}
+
+	goose.SetLogger(log.New(io.Discard, "", 0))
 
 	goose.SetBaseFS(migrationsFS)
 

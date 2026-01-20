@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -35,8 +34,6 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	if err := application.Migrate(); err != nil {
 		return err
 	}
-
-	slog.Info("## Running TUI ...")
 
 	// Create and run TUI
 	program := tui.NewProgram(application)

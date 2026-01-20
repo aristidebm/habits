@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"strconv"
@@ -759,14 +758,10 @@ func syncEntriesToCalendar(application *app.App, cal *calendar.Calendar, skipPen
 		start := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 		end := time.Now().AddDate(10, 0, 0) // Far future
 
-		slog.Info("Attempt to get entries with", "start", start, "end", end)
-
 		entries, err := application.ListEntries(context.Background(), habit.ID, start, end)
 		if err != nil {
 			continue
 		}
-
-		slog.Info("Got entries from database", "count", len(entries))
 
 		for _, entry := range entries {
 			var completed bool

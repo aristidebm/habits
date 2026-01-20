@@ -2,7 +2,6 @@ package calendar
 
 import (
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -529,8 +528,6 @@ func (c *Calendar) GetCellValue(habit Habit, date time.Time, viewMode ViewMode) 
 	if !exists {
 		return c.getDefaultValueForView(habit, date, viewMode)
 	}
-
-	slog.Info("", "Habit", habit.Name, "entry", entry.Value, "Date", entry.Date, "Completed", entry.Completed)
 
 	switch habit.Type {
 	case HabitTypeBit:

@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,7 +49,6 @@ func NewThemeManager() *ThemeManager {
 
 // LoadTheme loads a theme by name
 func (tm *ThemeManager) LoadTheme(name string) (*Theme, error) {
-	slog.Info("Loading theme ...")
 	// Check if already loaded
 	if theme, exists := tm.themes[name]; exists {
 		return theme, nil
