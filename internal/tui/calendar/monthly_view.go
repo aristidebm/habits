@@ -210,7 +210,18 @@ func (m *MonthlyView) getCompactCellValue(habit Habit, date time.Time) string {
 	}
 
 	if !exists {
-		return missedSymbol
+		// For past dates with no entry, use different symbols based on habit type
+		if date.After(today) {
+			return untrackedSymbol
+		}
+		switch habit.Type {
+		case HabitTypeBit:
+			return missedSymbol
+		case HabitTypeCount, HabitTypeFloat:
+			return untrackedSymbol
+		default:
+			return missedSymbol
+		}
 	}
 
 	switch habit.Type {

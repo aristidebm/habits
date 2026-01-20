@@ -474,32 +474,24 @@ func (c *Calendar) GetCellValue(habit Habit, date time.Time, viewMode ViewMode) 
 
 	slog.Info("", "Habit", habit.Name, "entry", entry.Value, "Date", entry.Date, "Completed", entry.Completed)
 
-	completedSymbol := c.getCompletedSymbol(viewMode)
-	missedSymbol := c.getMissedSymbol(viewMode)
-
 	switch habit.Type {
 	case HabitTypeBit:
 		if entry.Completed {
-			return completedSymbol
+			return c.getCompletedSymbol(viewMode)
 		}
-		return missedSymbol
+		return c.getMissedSymbol(viewMode)
 	case HabitTypeCount, HabitTypeFloat:
-		if entry.Value == "-" || entry.Value == "" || entry.Value == "0" {
-			return missedSymbol // No value = not completed
+		if entry.Value == "-" || entry.Value == "" {
+			return c.getUntrackedSymbol(viewMode)
 		}
-		return completedSymbol // Has value = completed
+		return entry.Value // Show actual value
 	}
-
 	return "?"
 }
 
 // getDefaultValueForView returns the default display value based on date and view mode
 func (c *Calendar) getDefaultValueForView(habit Habit, date time.Time, viewMode ViewMode) string {
-	yesterday := time.Now().AddDate(0, 0, -1)
-	if date.After(yesterday) {
-		return c.getUntrackedSymbol(viewMode) // Future date
-	}
-	return c.getMissedSymbol(viewMode) // Past date with no entry (missed)
+	return c.getUntrackedSymbol(viewMode)
 }
 
 // GetCellValue returns the display value for a habit on a specific date (legacy method for weekly view)

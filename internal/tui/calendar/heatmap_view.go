@@ -127,8 +127,15 @@ func (h *HeatmapView) getHeatmapCell(habit Habit, date time.Time, isSelected boo
 		// Future date
 		symbol = h.calendar.getUntrackedSymbol(ViewModeHeatmap)
 	} else if !exists {
-		// No entry for past date
-		symbol = h.calendar.getMissedSymbol(ViewModeHeatmap)
+		// No entry - use different symbols based on habit type
+		switch habit.Type {
+		case HabitTypeBit:
+			symbol = h.calendar.getMissedSymbol(ViewModeHeatmap)
+		case HabitTypeCount, HabitTypeFloat:
+			symbol = h.calendar.getUntrackedSymbol(ViewModeHeatmap)
+		default:
+			symbol = h.calendar.getMissedSymbol(ViewModeHeatmap)
+		}
 	} else {
 		// Entry exists
 		switch habit.Type {
@@ -139,8 +146,13 @@ func (h *HeatmapView) getHeatmapCell(habit Habit, date time.Time, isSelected boo
 				symbol = h.calendar.getMissedSymbol(ViewModeHeatmap)
 			}
 		case HabitTypeCount, HabitTypeFloat:
-			if entry.Value != "" && entry.Value != "-" && entry.Value != "0" {
-				symbol = h.calendar.getCompletedSymbol(ViewModeHeatmap)
+			if entry.Value != "" && entry.Value != "-" {
+				// Show actual value, truncate to 1 char for heatmap
+				if len(entry.Value) > 1 {
+					symbol = entry.Value[:1]
+				} else {
+					symbol = entry.Value
+				}
 			} else {
 				symbol = h.calendar.getMissedSymbol(ViewModeHeatmap)
 			}
@@ -159,7 +171,12 @@ func (h *HeatmapView) getHeatmapCell(habit Habit, date time.Time, isSelected boo
 	case h.calendar.getUntrackedSymbol(ViewModeHeatmap):
 		cell = h.futureStyle.Render(symbol)
 	default:
-		cell = symbol
+		// For count/float values, apply completed styling
+		if habit.Type == HabitTypeCount || habit.Type == HabitTypeFloat {
+			cell = h.completedStyle.Render(symbol)
+		} else {
+			cell = symbol
+		}
 	}
 
 	// Add selection indicator

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"example.com/habits/internal/app"
 	"example.com/habits/internal/tui/calendar"
@@ -175,6 +176,14 @@ func (p *Program) View() string {
 
 	// Render calendar
 	view.WriteString(p.calendar.View())
+	view.WriteString("\n")
+
+	// Database path line (like Vim's file path)
+	dbPath := p.app.Datasource
+	dbPathStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("8")).
+		Italic(true)
+	view.WriteString(dbPathStyle.Render(dbPath))
 	view.WriteString("\n")
 
 	// Render command line or status

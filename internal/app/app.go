@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"time"
 
@@ -13,7 +12,8 @@ import (
 
 type App struct {
 	*Store
-	config *Config
+	config     *Config
+	Datasource string
 }
 
 func NewApp(dbPath string) (*App, error) {
@@ -28,7 +28,12 @@ func NewApp(dbPath string) (*App, error) {
 		dbPath = config.DB.Path
 	}
 
-	slog.Info("The database path is", "database", dbPath)
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		// Config file doesn't exist, create with defaults
+		if err := EnsureDir(dbPath); err != nil {
+			return nil, fmt.Errorf("failed to create state directory: %w", err)
+		}
+	}
 
 	db, err := OpenDB(dbPath)
 	if err != nil {
@@ -36,8 +41,9 @@ func NewApp(dbPath string) (*App, error) {
 	}
 
 	return &App{
-		Store:  &Store{db: db},
-		config: config,
+		Datasource: dbPath,
+		Store:      &Store{db: db},
+		config:     config,
 	}, nil
 }
 
@@ -109,18 +115,6 @@ func (a *App) GetConfig() *Config {
 // LoadConfig loads the configuration from file
 func LoadConfig(dbPath string) (*Config, error) {
 	config := DefaultConfig()
-	if dbPath != "" {
-		config.DB.Path = dbPath
-	}
-	ensureDatabase := func() error {
-		if _, err := os.Stat(config.DB.Path); os.IsNotExist(err) {
-			// Config file doesn't exist, create with defaults
-			if err := EnsureDir(config.DB.Path); err != nil {
-				return fmt.Errorf("failed to create state directory: %w", err)
-			}
-		}
-		return nil
-	}
 	configPath := ConfigPath()
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		// Config file doesn't exist, create with defaults
@@ -130,9 +124,6 @@ func LoadConfig(dbPath string) (*Config, error) {
 		if err := SaveConfig(config); err != nil {
 			return nil, fmt.Errorf("failed to save default config: %w", err)
 		}
-		if err := ensureDatabase(); err != nil {
-			return nil, err
-		}
 		return config, nil
 	}
 
@@ -140,10 +131,6 @@ func LoadConfig(dbPath string) (*Config, error) {
 	_, err := toml.DecodeFile(configPath, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode config file: %w", err)
-	}
-
-	if err := ensureDatabase(); err != nil {
-		return nil, err
 	}
 
 	return config, nil
