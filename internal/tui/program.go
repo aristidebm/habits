@@ -38,6 +38,11 @@ type Program struct {
 
 // NewProgram creates a new TUI program
 func NewProgram(application *app.App) *Program {
+	// Ensure lipgloss is used
+	_ = lipgloss.NewStyle()
+	// Use default color profile
+	// lipgloss.SetColorProfile(termenv.ANSI256)
+
 	// Convert app habits to calendar habits
 	calendarHabits := make([]calendar.Habit, len(application.GetHabits(context.Background())))
 	for i, h := range application.GetHabits(context.Background()) {
@@ -291,10 +296,7 @@ func (p *Program) View() string {
 
 	// Database path line (like Vim's file path)
 	dbPath := p.app.Datasource
-	dbPathStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("8")).
-		Italic(true)
-	view.WriteString(dbPathStyle.Render(dbPath))
+	view.WriteString(p.app.GetStyles().DBPath.Render(dbPath))
 	view.WriteString("\n")
 
 	// Render command line or status

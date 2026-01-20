@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -13,6 +14,13 @@ import (
 
 // runTUI launches the terminal user interface
 func runTUI(cmd *cobra.Command, args []string) error {
+	f, err := tea.LogToFile("/tmp/debug.log", "debug")
+	if err != nil {
+		fmt.Println("fatal:", err)
+		os.Exit(1)
+	}
+	defer f.Close()
+
 	// Get database path from flag or default
 	dbPath, _ := cmd.Flags().GetString("db")
 
@@ -28,12 +36,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	f, err := tea.LogToFile("/tmp/debug.log", "debug")
-	if err != nil {
-		fmt.Println("fatal:", err)
-		os.Exit(1)
-	}
-	defer f.Close()
+	slog.Info("## Running TUI ...")
 
 	// Create and run TUI
 	program := tui.NewProgram(application)

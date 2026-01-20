@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
@@ -19,6 +20,7 @@ type App struct {
 }
 
 func NewApp(dbPath string) (*App, error) {
+	slog.Info("Instantiating the application")
 	// Load configuration
 	config, err := LoadConfig(dbPath)
 	if err != nil {
@@ -49,6 +51,7 @@ func NewApp(dbPath string) (*App, error) {
 		// Fallback to default theme
 		theme, _ = themeManager.LoadTheme("default")
 	}
+	slog.Info("The current theme is", "theme", theme)
 	styles := NewStyles(theme)
 
 	return &App{
