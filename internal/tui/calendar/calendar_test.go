@@ -232,7 +232,7 @@ func TestCalendarEntryStatusDisplay(t *testing.T) {
 
 	// Add entry with pending deletion status
 	testDate := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
-	cal.SetEntryWithStatus("Exercise", testDate, false, "-", false, HabitEntryStatusPendingDeletion, false)
+	cal.SetEntryWithStatus("Exercise", testDate, false, -1.0, false, HabitEntryStatusPendingDeletion, false)
 
 	// Check that it displays as untracked
 	displayValue := cal.GetCellValue(habits[0], testDate, ViewModeWeekly)
@@ -262,20 +262,67 @@ func TestCalendarDecrementToDeletion(t *testing.T) {
 	testDate := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
 
 	// Set initial value of 2
-	cal.SetEntry("Exercise", testDate, false, "2", false)
+	cal.SetEntry("Exercise", testDate, false, 2.0, false)
 
 	// Decrement to 1
 	cal.decrementEntry(habits[0], testDate)
 	entry, exists := cal.GetEntry("Exercise", testDate)
-	if !exists || entry.Value != "1" {
-		t.Errorf("Expected value '1', got '%s'", entry.Value)
+	if !exists || entry.Value != 1.0 {
+		t.Errorf("Expected value 1.0, got %.0f", entry.Value)
 	}
 
-	// Decrement to 0 - should become pending deletion
+	// Decrement to 0 - should set value to 0
 	cal.decrementEntry(habits[0], testDate)
 	entry, exists = cal.GetEntry("Exercise", testDate)
-	if !exists || entry.Value != "-" || entry.Status != HabitEntryStatusPendingDeletion {
-		t.Errorf("Expected pending deletion status with value '-', got status %v value '%s'", entry.Status, entry.Value)
+	if !exists || entry.Value != 0.0 || entry.Status != HabitEntryStatusActive {
+		t.Errorf("Expected active status with value 0.0, got status %v value %.0f", entry.Status, entry.Value)
+	}
+
+	// Decrement from 0 to untracked
+	cal.decrementEntry(habits[0], testDate)
+	entry, exists = cal.GetEntry("Exercise", testDate)
+	if !exists || entry.Value != -1.0 || entry.Status != HabitEntryStatusPendingDeletion {
+		t.Errorf("Expected pending deletion status with value -1.0, got status %v value %.0f", entry.Status, entry.Value)
+	}
+}
+
+func TestCalendarDecrementBitHabit(t *testing.T) {
+	config := app.DefaultConfig()
+	tm := app.NewThemeManager()
+	theme, _ := tm.LoadTheme("default")
+	styles := app.NewStyles(theme)
+	habits := []Habit{
+		{ID: 1, Name: "Meditation", Type: HabitTypeBit, Goal: 0},
+	}
+
+	cal := NewCalendar(habits, config, styles, nil)
+	testDate := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+
+	// Initial state: untracked (no entry)
+	entry, exists := cal.GetEntry("Meditation", testDate)
+	if exists {
+		t.Errorf("Expected no entry initially, but found one")
+	}
+
+	// Set to completed
+	cal.SetEntry("Meditation", testDate, true, 1.0, true)
+	entry, exists = cal.GetEntry("Meditation", testDate)
+	if !exists || !entry.Completed {
+		t.Errorf("Expected completed")
+	}
+
+	// Decrement: completed -> missed
+	cal.decrementEntry(habits[0], testDate)
+	entry, exists = cal.GetEntry("Meditation", testDate)
+	if !exists || entry.Completed || entry.Status != HabitEntryStatusActive {
+		t.Errorf("Expected missed (not completed, active), got completed %v status %v", entry.Completed, entry.Status)
+	}
+
+	// Decrement: missed -> untracked
+	cal.decrementEntry(habits[0], testDate)
+	entry, exists = cal.GetEntry("Meditation", testDate)
+	if !exists || entry.Status != HabitEntryStatusPendingDeletion {
+		t.Errorf("Expected pending deletion, got status %v", entry.Status)
 	}
 }
 

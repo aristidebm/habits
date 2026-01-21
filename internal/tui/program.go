@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"time"
 
@@ -509,16 +508,16 @@ func (p *Program) openNoteEditor(habit calendar.Habit, date time.Time) tea.Cmd {
 				status = "not completed"
 			}
 		case calendar.HabitTypeCount, calendar.HabitTypeFloat:
-			if entry.Value != "-" && entry.Value != "" {
+			if entry.Value >= 0 {
 				if habit.Goal > 0 {
-					val, _ := strconv.ParseFloat(entry.Value, 64)
+					val := entry.Value
 					if val >= habit.Goal {
 						status = "goal met"
 					} else {
 						status = fmt.Sprintf("%.1f/%g", val, habit.Goal)
 					}
 				} else {
-					status = entry.Value
+					status = fmt.Sprintf("%.0f", entry.Value)
 				}
 			} else {
 				status = "skipped"
@@ -801,16 +800,13 @@ func syncEntriesToCalendar(application *app.App, cal *calendar.Calendar, skipPen
 
 		for _, entry := range entries {
 			var completed bool
-			var value string
+			var value float64
 			if habit.Type == app.HabitTypeBit {
 				completed = entry.Value == 1
-				value = ""
+				value = entry.Value
 			} else {
 				completed = entry.Value > 0
-				value = fmt.Sprintf("%.0f", entry.Value)
-				if value == "1.000000" {
-					value = "1"
-				}
+				value = entry.Value
 			}
 			cal.SetEntryWithNote(habit.Name, entry.Date, completed, value, false, entry.HasNote)
 		}

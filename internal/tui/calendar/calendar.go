@@ -108,8 +108,8 @@ func (hes HabitEntryStatus) String() string {
 // HabitEntry represents a habit entry for a specific date
 type HabitEntry struct {
 	Date      time.Time
-	Completed bool   // for bit type
-	Value     string // for count/float type, "-" for skipped
+	Completed bool    // for bit type
+	Value     float64 // for count/float type, -1 for skipped
 	Pending   bool
 	Status    HabitEntryStatus // Status of the entry
 	HasNote   bool             // Whether this entry has notes
@@ -585,17 +585,17 @@ func (c *Calendar) GetViewMode() ViewMode {
 }
 
 // SetEntry sets an entry for a habit on a specific date
-func (c *Calendar) SetEntry(habitName string, date time.Time, completed bool, value string, pending bool) {
+func (c *Calendar) SetEntry(habitName string, date time.Time, completed bool, value float64, pending bool) {
 	c.SetEntryWithStatus(habitName, date, completed, value, pending, HabitEntryStatusActive, false)
 }
 
 // SetEntryWithNote sets an entry for a habit on a specific date with note information
-func (c *Calendar) SetEntryWithNote(habitName string, date time.Time, completed bool, value string, pending bool, hasNote bool) {
+func (c *Calendar) SetEntryWithNote(habitName string, date time.Time, completed bool, value float64, pending bool, hasNote bool) {
 	c.SetEntryWithStatus(habitName, date, completed, value, pending, HabitEntryStatusActive, hasNote)
 }
 
 // SetEntryWithStatus sets an entry for a habit on a specific date with status and note information
-func (c *Calendar) SetEntryWithStatus(habitName string, date time.Time, completed bool, value string, pending bool, status HabitEntryStatus, hasNote bool) {
+func (c *Calendar) SetEntryWithStatus(habitName string, date time.Time, completed bool, value float64, pending bool, status HabitEntryStatus, hasNote bool) {
 	if c.entries[habitName] == nil {
 		c.entries[habitName] = make(map[time.Time]HabitEntry)
 	}
@@ -668,15 +668,18 @@ func (c *Calendar) GetCellValue(habit Habit, date time.Time, viewMode ViewMode) 
 
 	switch habit.Type {
 	case HabitTypeBit:
-		if entry.Completed {
+		if entry.Status == HabitEntryStatusPendingDeletion {
+			return c.getUntrackedSymbol(viewMode)
+		} else if entry.Completed {
 			return c.getCompletedSymbol(viewMode)
+		} else {
+			return c.getMissedSymbol(viewMode)
 		}
-		return c.getMissedSymbol(viewMode)
 	case HabitTypeCount, HabitTypeFloat:
-		if entry.Value == "-" || entry.Value == "" {
+		if entry.Value < 0 {
 			return c.getUntrackedSymbol(viewMode)
 		}
-		return entry.Value // Show actual value
+		return fmt.Sprintf("%.0f", entry.Value) // Show actual value
 	}
 	return "?"
 }
@@ -877,20 +880,26 @@ func (c *Calendar) toggleOrIncrementEntry(habit Habit, date time.Time) {
 	case HabitTypeBit:
 		entry, exists := c.GetEntry(habit.Name, date)
 		if exists {
-			c.SetEntry(habit.Name, date, !entry.Completed, entry.Value, true)
+			newCompleted := !entry.Completed
+			var newValue float64
+			if newCompleted {
+				newValue = 1.0
+			} else {
+				newValue = 0.0
+			}
+			c.SetEntry(habit.Name, date, newCompleted, newValue, true)
 		} else {
-			c.SetEntry(habit.Name, date, true, "-", true)
+			c.SetEntry(habit.Name, date, true, 1.0, true)
 		}
 
 	case HabitTypeCount, HabitTypeFloat:
 		entry, exists := c.GetEntry(habit.Name, date)
-		if exists && entry.Value != "-" && entry.Value != "" {
-			var val int
-			fmt.Sscanf(entry.Value, "%d", &val)
+		if exists && entry.Value >= 0 {
+			val := entry.Value
 			val++
-			c.SetEntry(habit.Name, date, entry.Completed, fmt.Sprintf("%d", val), true)
+			c.SetEntry(habit.Name, date, entry.Completed, val, true)
 		} else {
-			c.SetEntry(habit.Name, date, false, "1", true)
+			c.SetEntry(habit.Name, date, false, 1.0, true)
 		}
 	}
 }
@@ -899,16 +908,26 @@ func (c *Calendar) toggleOrIncrementEntry(habit Habit, date time.Time) {
 func (c *Calendar) decrementEntry(habit Habit, date time.Time) {
 	entry, exists := c.GetEntry(habit.Name, date)
 
-	if exists && entry.Value != "-" && entry.Value != "" {
-		var val int
-		fmt.Sscanf(entry.Value, "%d", &val)
-		if val > 0 {
-			val--
-			if val == 0 {
-				// When reaching 0, mark as pending_deletion (which will be stored as -1 in DB)
-				c.SetEntryWithStatus(habit.Name, date, false, "-", true, HabitEntryStatusPendingDeletion, entry.HasNote)
-			} else {
-				c.SetEntry(habit.Name, date, entry.Completed, fmt.Sprintf("%d", val), true)
+	if exists && entry.Value >= 0 {
+		if habit.Type == HabitTypeBit {
+			if entry.Status == HabitEntryStatusPendingDeletion {
+				// Already untracked
+				return
+			} else if entry.Completed {
+				// Completed -> missed
+				c.SetEntry(habit.Name, date, false, 0.0, true)
+			} else if entry.Value == 0.0 {
+				// Missed -> untracked
+				c.SetEntryWithStatus(habit.Name, date, false, -1.0, true, HabitEntryStatusPendingDeletion, entry.HasNote)
+			}
+		} else {
+			val := entry.Value
+			if val > 0 {
+				val--
+				c.SetEntry(habit.Name, date, entry.Completed, val, true)
+			} else if val == 0 {
+				// Decrement from 0 to untracked
+				c.SetEntryWithStatus(habit.Name, date, false, -1.0, true, HabitEntryStatusPendingDeletion, entry.HasNote)
 			}
 		}
 	}
@@ -919,14 +938,14 @@ func (c *Calendar) GetPendingEntries() []struct {
 	HabitName string
 	Date      time.Time
 	Completed bool
-	Value     string
+	Value     float64
 	Status    HabitEntryStatus
 } {
 	var pending []struct {
 		HabitName string
 		Date      time.Time
 		Completed bool
-		Value     string
+		Value     float64
 		Status    HabitEntryStatus
 	}
 
@@ -937,7 +956,7 @@ func (c *Calendar) GetPendingEntries() []struct {
 					HabitName string
 					Date      time.Time
 					Completed bool
-					Value     string
+					Value     float64
 					Status    HabitEntryStatus
 				}{
 					HabitName: habitName,
@@ -1038,10 +1057,12 @@ func (c *Calendar) WritePendingHabits(createHabitsBulk func(habits []struct {
 		}
 
 		var value float64
-		if entry.Completed {
+		if entry.Value >= 0 {
+			value = entry.Value
+		} else if entry.Completed {
 			value = 1
-		} else if entry.Value != "-" && entry.Value != "" {
-			fmt.Sscanf(entry.Value, "%f", &value)
+		} else {
+			continue
 		}
 
 		if err := upsertEntry(habitID, entry.Date, value); err != nil {

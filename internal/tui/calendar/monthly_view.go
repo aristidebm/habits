@@ -176,24 +176,16 @@ func (m *MonthlyView) getCompactCellValue(habit Habit, date time.Time) string {
 			return completedSymbol
 		}
 		return missedSymbol
-	case HabitTypeCount:
-		if entry.Value == "-" || entry.Value == "" {
+	case HabitTypeCount, HabitTypeFloat:
+		if entry.Value < 0 {
 			return missedSymbol
 		}
-		// Show actual count value, truncate if too long
-		if len(entry.Value) > 3 {
-			return entry.Value[:3]
+		// Show actual value, truncate if too long
+		valStr := fmt.Sprintf("%.0f", entry.Value)
+		if len(valStr) > 3 {
+			return valStr[:3]
 		}
-		return entry.Value
-	case HabitTypeFloat:
-		if entry.Value == "-" || entry.Value == "" {
-			return missedSymbol
-		}
-		// Show actual float value, truncate if too long
-		if len(entry.Value) > 3 {
-			return entry.Value[:3]
-		}
-		return entry.Value
+		return valStr
 	}
 
 	return missedSymbol
@@ -215,7 +207,7 @@ func (m *MonthlyView) getSelectedDateStats() (completed, remaining int) {
 					remaining++
 				}
 			case HabitTypeCount, HabitTypeFloat:
-				if entry.Value != "" && entry.Value != "-" {
+				if entry.Value >= 0 {
 					completed++
 				} else {
 					remaining++
