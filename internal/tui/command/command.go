@@ -42,8 +42,8 @@ func Quit() Result {
 }
 
 // CommandFunc is the function signature for command handlers
-// Each handler validates its own arguments and returns a Result
-type CommandFunc func(args []string) Result
+// Each handler validates its own arguments and returns a Result and optional Cmd
+type CommandFunc func(args []string) (Result, tea.Cmd)
 
 // Command represents a registerable command
 type Command struct {
@@ -204,7 +204,7 @@ func (c *CommandLine) executeCommand() tea.Cmd {
 	c.Hide()
 
 	// Execute command - handler does its own validation
-	result := cmd.Handler(args)
+	result, teaCmd := cmd.Handler(args)
 
 	// Handle result
 	switch result.Type {
@@ -223,28 +223,28 @@ func (c *CommandLine) executeCommand() tea.Cmd {
 		c.lastError = ""
 	}
 
-	return result.Cmd
+	return teaCmd
 }
 
 // handleHelp handles the help command
-func (c *CommandLine) handleHelp(args []string) Result {
+func (c *CommandLine) handleHelp(args []string) (Result, tea.Cmd) {
 	if len(args) > 0 {
 		// Show help for specific command
 		cmdName := args[0]
 		cmd, exists := c.commands[cmdName]
 		if !exists {
-			return Error(fmt.Sprintf("Unknown command: %s", cmdName))
+			return Error(fmt.Sprintf("Unknown command: %s", cmdName)), nil
 		}
 
 		helpMsg := fmt.Sprintf("%s: %s\nUsage: %s", cmd.Name, cmd.Description, cmd.Usage)
 		if len(cmd.Aliases) > 0 {
 			helpMsg += fmt.Sprintf("\nAliases: %s", strings.Join(cmd.Aliases, ", "))
 		}
-		return Success(helpMsg)
+		return Success(helpMsg), nil
 	}
 
 	// Show brief help message instead of full command list
-	return Success("Type ':help <command>' for help on a specific command. Available: a(add), d(delete), r(rename), w(write), q(quit), wq(write+quit)")
+	return Success("Type ':help <command>' for help on a specific command. Available: a(add), d(delete), r(rename), w(write), q(quit), wq(write+quit)"), nil
 }
 
 // SetError sets an error message to display

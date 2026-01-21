@@ -221,6 +221,11 @@ func (p *Program) Init() tea.Cmd {
 // Update handles messages
 func (p *Program) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case calendar.HabitEditMsg, calendar.EntryEditMsg, calendar.NoteEditMsg, calendar.HabitDeletedMsg, calendar.EntryDeletedMsg:
+		// Forward calendar-related messages to the calendar component
+		_, cmd := p.calendar.Update(msg)
+		return p, cmd
+
 	case tea.KeyMsg:
 		// If command line is visible, let it handle the input
 		if p.commandLine.IsVisible() {
@@ -329,10 +334,10 @@ func (p *Program) View() string {
 
 // Command handlers - each validates its own arguments
 
-func (p *Program) handleAddCommand(args []string) command.Result {
+func (p *Program) handleAddCommand(args []string) (command.Result, tea.Cmd) {
 	// Validate arguments
 	if len(args) < 2 {
-		return command.Error("Usage: add <name> <type> [goal]")
+		return command.Error("Usage: add <name> <type> [goal]"), nil
 	}
 
 	name := args[0]
@@ -347,7 +352,7 @@ func (p *Program) handleAddCommand(args []string) command.Result {
 	case "float":
 		habitType = app.HabitTypeFloat
 	default:
-		return command.Error(fmt.Sprintf("Invalid habit type: %s (use: bit, count, float)", typeStr))
+		return command.Error(fmt.Sprintf("Invalid habit type: %s (use: bit, count, float)", typeStr)), nil
 	}
 
 	// Parse optional goal
@@ -355,7 +360,7 @@ func (p *Program) handleAddCommand(args []string) command.Result {
 	if len(args) >= 3 {
 		_, err := fmt.Sscanf(args[2], "%f", &goal)
 		if err != nil {
-			return command.Error(fmt.Sprintf("Invalid goal value: %s", args[2]))
+			return command.Error(fmt.Sprintf("Invalid goal value: %s", args[2])), nil
 		}
 	}
 
@@ -369,13 +374,13 @@ func (p *Program) handleAddCommand(args []string) command.Result {
 
 	// Reload calendar with new habits
 	p.reloadCalendar()
-	return command.Success(fmt.Sprintf("Added habit: %s (pending, use :write to save)", name))
+	return command.Success(fmt.Sprintf("Added habit: %s (pending, use :write to save)", name)), nil
 }
 
-func (p *Program) handleDeleteCommand(args []string) command.Result {
+func (p *Program) handleDeleteCommand(args []string) (command.Result, tea.Cmd) {
 	// Validate arguments
 	if len(args) < 1 {
-		return command.Error("Usage: delete <name>")
+		return command.Error("Usage: delete <name>"), nil
 	}
 
 	name := args[0]
@@ -387,7 +392,7 @@ func (p *Program) handleDeleteCommand(args []string) command.Result {
 		if h.Name == name {
 			p.calendar.RemovePendingHabit(name)
 			p.reloadCalendar()
-			return command.Success(fmt.Sprintf("Deleted pending habit: %s", name))
+			return command.Success(fmt.Sprintf("Deleted pending habit: %s", name)), nil
 		}
 	}
 
@@ -403,22 +408,24 @@ func (p *Program) handleDeleteCommand(args []string) command.Result {
 	}
 
 	if !found {
-		return command.Error(fmt.Sprintf("Habit '%s' not found", name))
+		return command.Error(fmt.Sprintf("Habit '%s' not found", name)), nil
 	}
 
 	// Execute command
 	if err := p.app.DeleteHabit(context.Background(), habitID); err != nil {
-		return command.Error(fmt.Sprintf("Error: %s", err))
+		return command.Error(fmt.Sprintf("Error: %s", err)), nil
 	}
 
-	p.reloadCalendar()
-	return command.Success(fmt.Sprintf("Deleted habit: %s", name))
+	// Send message to calendar about habit deletion
+	return command.Success(fmt.Sprintf("Deleted habit: %s", name)), tea.Cmd(func() tea.Msg {
+		return calendar.HabitDeletedMsg{HabitID: habitID}
+	})
 }
 
-func (p *Program) handleRenameCommand(args []string) command.Result {
+func (p *Program) handleRenameCommand(args []string) (command.Result, tea.Cmd) {
 	// Validate arguments
 	if len(args) < 2 {
-		return command.Error("Usage: rename <old_name> <new_name>")
+		return command.Error("Usage: rename <old_name> <new_name>"), nil
 	}
 
 	oldName := args[0]
@@ -441,47 +448,44 @@ func (p *Program) handleRenameCommand(args []string) command.Result {
 	}
 
 	if !found {
-		return command.Error(fmt.Sprintf("Habit '%s' not found", oldName))
+		return command.Error(fmt.Sprintf("Habit '%s' not found", oldName)), nil
 	}
 
 	// Check if new name already exists
 	for _, h := range habits {
 		if h.Name == newName {
-			return command.Error(fmt.Sprintf("Habit '%s' already exists", newName))
+			return command.Error(fmt.Sprintf("Habit '%s' already exists", newName)), nil
 		}
 	}
 
 	// Rename the habit
 	if err := p.app.UpdateHabit(context.Background(), habitID, newName, habitType, goal); err != nil {
-		return command.Error(fmt.Sprintf("Error: %s", err))
+		return command.Error(fmt.Sprintf("Error: %s", err)), nil
 	}
 
 	p.reloadCalendar()
-	return command.Success(fmt.Sprintf("Renamed habit: %s -> %s", oldName, newName))
+	return command.Success(fmt.Sprintf("Renamed habit: %s -> %s", oldName, newName)), nil
 }
 
-func (p *Program) handleNoteCommand(args []string) command.Result {
+func (p *Program) handleNoteCommand(args []string) (command.Result, tea.Cmd) {
 	selectedDate := p.calendar.GetSelectedDate()
 
 	habit := p.calendar.GetSelectedHabit()
 	if habit == nil {
-		return command.Error("No habit selected")
+		return command.Error("No habit selected"), nil
 	}
 
-	return command.Result{
-		Type: command.ResultSuccess,
-		Cmd:  p.openNoteEditor(*habit, selectedDate),
-	}
+	return command.Success("Note editor opened"), p.openNoteEditor(*habit, selectedDate)
 }
 
-func (p *Program) handleTrackUpCommand(args []string) command.Result {
+func (p *Program) handleTrackUpCommand(args []string) (command.Result, tea.Cmd) {
 	// This is a placeholder - track commands are typically handled via key bindings
-	return command.Success("Track up command")
+	return command.Success("Track up command"), nil
 }
 
-func (p *Program) handleTrackDownCommand(args []string) command.Result {
+func (p *Program) handleTrackDownCommand(args []string) (command.Result, tea.Cmd) {
 	// This is a placeholder - track commands are typically handled via key bindings
-	return command.Success("Track down command")
+	return command.Success("Track down command"), nil
 }
 
 func (p *Program) openNoteEditor(habit calendar.Habit, date time.Time) tea.Cmd {
@@ -618,7 +622,7 @@ func (p *Program) openNoteEditor(habit calendar.Habit, date time.Time) tea.Cmd {
 	})
 }
 
-func (p *Program) handleWriteCommand(args []string) command.Result {
+func (p *Program) handleWriteCommand(args []string) (command.Result, tea.Cmd) {
 	pendingHabits := p.calendar.GetPendingHabits()
 	pendingEntries := p.calendar.GetPendingEntries()
 
@@ -629,7 +633,7 @@ func (p *Program) handleWriteCommand(args []string) command.Result {
 	}
 
 	if len(pendingHabits) == 0 && len(pendingEntries) == 0 && pendingNotesCount == 0 {
-		return command.Error("No pending habits, entries, or notes to write")
+		return command.Error("No pending habits, entries, or notes to write"), nil
 	}
 
 	if err := p.calendar.WritePendingHabits(func(habits []struct {
@@ -691,7 +695,7 @@ func (p *Program) handleWriteCommand(args []string) command.Result {
 		}
 		return entry.ID, nil
 	}); err != nil {
-		return command.Error(fmt.Sprintf("Error: %s", err))
+		return command.Error(fmt.Sprintf("Error: %s", err)), nil
 	}
 
 	// Collect IDs of entries marked for deletion (pending_deletion status in UI)
@@ -714,48 +718,65 @@ func (p *Program) handleWriteCommand(args []string) command.Result {
 	// Batch delete entries marked for deletion
 	if len(entriesToDelete) > 0 {
 		if err := p.app.DeleteEntriesByIDs(context.Background(), entriesToDelete); err != nil {
-			return command.Error(fmt.Sprintf("Error deleting pending entries: %s", err))
+			return command.Error(fmt.Sprintf("Error deleting pending entries: %s", err)), nil
 		}
 	}
 
-	p.reloadCalendar()
 	msg := fmt.Sprintf("Wrote %d habits, %d entries, and %d notes to database", len(pendingHabits), len(pendingEntries), pendingNotesCount)
 	if len(entriesToDelete) > 0 {
 		msg += fmt.Sprintf(" (deleted %d entries)", len(entriesToDelete))
 	}
-	return command.Success(msg)
+
+	// Send message to calendar about entry deletions
+	var cmds []tea.Cmd
+	if len(entriesToDelete) > 0 {
+		cmds = append(cmds, tea.Cmd(func() tea.Msg {
+			return calendar.EntryDeletedMsg{EntryIDs: entriesToDelete}
+		}))
+	}
+
+	// Return success with commands
+	return command.Success(msg), tea.Batch(cmds...)
 }
 
-func (p *Program) handleNextMonthCommand(args []string) command.Result {
+func (p *Program) handleNextMonthCommand(args []string) (command.Result, tea.Cmd) {
 	// No arguments needed - validation implicit
 	p.calendar.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'L'}})
-	return command.Success("Moved to next month")
+	return command.Success("Moved to next month"), nil
 }
 
-func (p *Program) handlePrevMonthCommand(args []string) command.Result {
+func (p *Program) handlePrevMonthCommand(args []string) (command.Result, tea.Cmd) {
 	// No arguments needed - validation implicit
 	p.calendar.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'H'}})
-	return command.Success("Moved to previous month")
+	return command.Success("Moved to previous month"), nil
 }
 
-func (p *Program) handleQuitCommand(args []string) command.Result {
+func (p *Program) handleQuitCommand(args []string) (command.Result, tea.Cmd) {
 	// No arguments needed - validation implicit
-	return command.Quit()
+	return command.Quit(), nil
 }
 
-func (p *Program) handleWQCommand(args []string) command.Result {
+func (p *Program) handleWQCommand(args []string) (command.Result, tea.Cmd) {
 	// First write pending habits
-	result := p.handleWriteCommand(args)
+	result, _ := p.handleWriteCommand(args)
 	if result.Type == command.ResultError {
-		return result // Return the error if write failed
+		return result, nil // Return the error if write failed
 	}
 
 	// Then quit
-	return command.Quit()
+	return command.Quit(), nil
 }
 
-// reloadCalendar reloads the calendar with current app data
+// reloadCalendar reloads the calendar with current app data (synchronous version for commands)
 func (p *Program) reloadCalendar() {
+	// Save cursor position before reload
+	currentSelectedHabit := p.calendar.GetSelectedHabit()
+	var selectedHabitName string
+	if currentSelectedHabit != nil {
+		selectedHabitName = currentSelectedHabit.Name
+	}
+	selectedDate := p.calendar.GetSelectedDate()
+
 	// Save pending habits before reload
 	pending := p.calendar.GetPendingHabits()
 
@@ -774,7 +795,8 @@ func (p *Program) reloadCalendar() {
 	// Append pending habits to calendar habits list
 	calendarHabits = append(calendarHabits, pending...)
 
-	p.calendar.ReloadHabits(calendarHabits)
+	// Reload habits with cursor position preservation
+	p.calendar.ReloadHabitsWithSelection(calendarHabits, selectedHabitName, selectedDate)
 	p.calendar.Resize(p.width, p.height-2)
 
 	// Sync entries (but not pending habits - they have no entries yet)
@@ -811,10 +833,10 @@ func syncEntriesToCalendar(application *app.App, cal *calendar.Calendar, skipPen
 	}
 }
 
-func (p *Program) handleExportCommand(args []string) command.Result {
+func (p *Program) handleExportCommand(args []string) (command.Result, tea.Cmd) {
 	// Validate arguments
 	if len(args) < 1 {
-		return command.Error("Usage: export <path>")
+		return command.Error("Usage: export <path>"), nil
 	}
 
 	path := args[0]
@@ -822,21 +844,21 @@ func (p *Program) handleExportCommand(args []string) command.Result {
 	// Export habits and entries
 	exportHabits, err := p.app.Export(context.Background())
 	if err != nil {
-		return command.Error(fmt.Sprintf("Error exporting data: %s", err))
+		return command.Error(fmt.Sprintf("Error exporting data: %s", err)), nil
 	}
 
-	// Write to JSON file
+	// Write to JSON file (reuse TUI logic)
 	file, err := os.Create(path)
 	if err != nil {
-		return command.Error(fmt.Sprintf("Error creating file: %s", err))
+		return command.Error(fmt.Sprintf("Error creating file: %s", err)), nil
 	}
 	defer file.Close()
 
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(exportHabits); err != nil {
-		return command.Error(fmt.Sprintf("Error writing JSON: %s", err))
+		return command.Error(fmt.Sprintf("Error writing JSON: %s", err)), nil
 	}
 
-	return command.Success(fmt.Sprintf("Exported %d habits to %s", len(exportHabits), path))
+	return command.Success(fmt.Sprintf("Exported %d habits to %s", len(exportHabits), path)), nil
 }

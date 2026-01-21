@@ -19,6 +19,28 @@ const (
 	ViewModeMonthly
 )
 
+// Message types for Elm architecture
+type HabitEditMsg struct {
+	HabitID int
+}
+
+type EntryEditMsg struct {
+	HabitID int
+	Date    time.Time
+}
+
+type NoteEditMsg struct {
+	HabitEntryID int
+}
+
+type HabitDeletedMsg struct {
+	HabitID int
+}
+
+type EntryDeletedMsg struct {
+	EntryIDs []int
+}
+
 // HabitType represents the type of habit
 type HabitType int
 
@@ -174,6 +196,61 @@ func (c *Calendar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
+	case HabitEditMsg:
+		// Handle habit edit - could trigger reload or update specific habit
+		// For now, just log that we received the message
+		slog.Debug("Received HabitEditMsg", "habit_id", msg.HabitID)
+
+	case EntryEditMsg:
+		// Handle entry edit for specific habit and date
+		slog.Debug("Received EntryEditMsg", "habit_id", msg.HabitID, "date", msg.Date)
+
+	case NoteEditMsg:
+		// Handle note edit
+		slog.Debug("Received NoteEditMsg", "entry_id", msg.HabitEntryID)
+
+	case HabitDeletedMsg:
+		// Handle habit deletion - remove from local state and maintain cursor position
+		habitIndex := -1
+		for i, habit := range c.habits {
+			if habit.ID == msg.HabitID {
+				habitIndex = i
+				break
+			}
+		}
+
+		if habitIndex >= 0 {
+			// Remove habit from slice
+			c.habits = append(c.habits[:habitIndex], c.habits[habitIndex+1:]...)
+
+			// Adjust cursor position
+			if habitIndex < c.selectedHabit {
+				// Deleted a habit before cursor - shift cursor left
+				c.selectedHabit--
+			} else if habitIndex == c.selectedHabit {
+				// Deleted the habit at cursor - keep cursor position if possible
+				if c.selectedHabit >= len(c.habits) {
+					c.selectedHabit = len(c.habits) - 1
+				}
+			}
+			// If deleted after cursor, cursor stays the same
+
+			// Ensure cursor is within bounds
+			if c.selectedHabit < 0 {
+				c.selectedHabit = 0
+			}
+			if len(c.habits) > 0 && c.selectedHabit >= len(c.habits) {
+				c.selectedHabit = len(c.habits) - 1
+			}
+
+			c.scrollToSelectedHabit()
+			slog.Debug("Removed habit from calendar", "habit_id", msg.HabitID, "new_cursor", c.selectedHabit)
+		}
+
+	case EntryDeletedMsg:
+		// Handle entry deletion - entries will be synced when calendar reloads
+		slog.Debug("Received EntryDeletedMsg", "entry_count", len(msg.EntryIDs))
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "tab":
@@ -671,6 +748,11 @@ func (c *Calendar) GetSelectedDate() time.Time {
 	return c.selectedDate
 }
 
+// SetSelectedDate sets the currently selected date
+func (c *Calendar) SetSelectedDate(date time.Time) {
+	c.selectedDate = date
+}
+
 // GetSelectedHabit returns the currently selected habit
 func (c *Calendar) GetSelectedHabit() *Habit {
 	if c.selectedHabit >= 0 && c.selectedHabit < len(c.habits) {
@@ -679,10 +761,71 @@ func (c *Calendar) GetSelectedHabit() *Habit {
 	return nil
 }
 
+// SetSelectedHabitByIndex sets the selected habit by index
+func (c *Calendar) SetSelectedHabitByIndex(index int) {
+	if index >= 0 && index < len(c.habits) {
+		c.selectedHabit = index
+		c.scrollToSelectedHabit()
+	}
+}
+
+// SetSelectedHabitByName sets the selected habit by name
+func (c *Calendar) SetSelectedHabitByName(name string) {
+	for i, habit := range c.habits {
+		if habit.Name == name {
+			c.selectedHabit = i
+			c.scrollToSelectedHabit()
+			break
+		}
+	}
+}
+
 // ReloadHabits replaces the habits list
 func (c *Calendar) ReloadHabits(habits []Habit) {
+	c.ReloadHabitsWithSelection(habits, "", time.Time{})
+}
+
+// ReloadHabitsWithSelection replaces the habits list and restores cursor position
+func (c *Calendar) ReloadHabitsWithSelection(habits []Habit, selectedHabitName string, selectedDate time.Time) {
+	// Save current selection for fallback
+	oldSelectedHabit := ""
+	if c.selectedHabit >= 0 && c.selectedHabit < len(c.habits) {
+		oldSelectedHabit = c.habits[c.selectedHabit].Name
+	}
+	oldSelectedDate := c.selectedDate
+
+	// Reload habits
 	c.habits = habits
-	c.selectedHabit = 0
+	c.selectedHabit = 0 // Reset to first habit
+
+	// Restore selection
+	if selectedHabitName != "" {
+		// Use the specified habit name
+		for i, habit := range c.habits {
+			if habit.Name == selectedHabitName {
+				c.selectedHabit = i
+				break
+			}
+		}
+	} else if oldSelectedHabit != "" {
+		// Try to restore previous habit selection
+		for i, habit := range c.habits {
+			if habit.Name == oldSelectedHabit {
+				c.selectedHabit = i
+				break
+			}
+		}
+	}
+
+	// Restore date selection
+	if !selectedDate.IsZero() {
+		c.selectedDate = selectedDate
+	} else {
+		c.selectedDate = oldSelectedDate
+	}
+
+	// Scroll to selected habit
+	c.scrollToSelectedHabit()
 }
 
 // RemovePendingHabit removes a habit from pending list
