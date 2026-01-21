@@ -27,6 +27,9 @@ type NoteEditedMsg struct {
 	Error error
 }
 
+// ReloadMsg is sent to trigger a calendar reload
+type ReloadMsg struct{}
+
 // Program is the main TUI program
 type Program struct {
 	app         *app.App
@@ -254,6 +257,10 @@ func (p *Program) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			p.commandLine.SetSuccess("Note updated")
 		}
+		return p, nil
+
+	case ReloadMsg:
+		p.reloadCalendar()
 		return p, nil
 	}
 
@@ -706,6 +713,11 @@ func (p *Program) handleWriteCommand(args []string) (command.Result, tea.Cmd) {
 			return calendar.EntryDeletedMsg{EntryIDs: entriesToDelete}
 		}))
 	}
+
+	// Reload calendar to reflect changes
+	cmds = append(cmds, tea.Cmd(func() tea.Msg {
+		return ReloadMsg{}
+	}))
 
 	// Return success with commands
 	return command.Success(msg), tea.Batch(cmds...)
