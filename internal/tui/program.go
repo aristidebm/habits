@@ -149,20 +149,6 @@ func (p *Program) registerCommands() {
 	})
 
 	p.commandLine.RegisterCommand(command.Command{
-		Name:        "delete",
-		Description: "Delete a habit",
-		Usage:       "delete <name>",
-		Handler:     p.handleDeleteCommand,
-	})
-
-	p.commandLine.RegisterCommand(command.Command{
-		Name:        "rename",
-		Description: "Rename a habit",
-		Usage:       "rename <old_name> <new_name>",
-		Handler:     p.handleRenameCommand,
-	})
-
-	p.commandLine.RegisterCommand(command.Command{
 		Name:        "track-up",
 		Description: "Mark habit as done or increment value",
 		Usage:       "track-up <habit> [value]",
@@ -188,20 +174,6 @@ func (p *Program) registerCommands() {
 		Description: "Go to previous month",
 		Usage:       "prev-month",
 		Handler:     p.handlePrevMonthCommand,
-	})
-
-	p.commandLine.RegisterCommand(command.Command{
-		Name:        "quit",
-		Description: "Quit the application",
-		Usage:       "quit",
-		Handler:     p.handleQuitCommand,
-	})
-
-	p.commandLine.RegisterCommand(command.Command{
-		Name:        "write",
-		Description: "Write all pending habits to database",
-		Usage:       "write",
-		Handler:     p.handleWriteCommand,
 	})
 
 	p.commandLine.RegisterCommand(command.Command{
@@ -753,7 +725,7 @@ func (p *Program) handlePrevMonthCommand(args []string) (command.Result, tea.Cmd
 
 func (p *Program) handleQuitCommand(args []string) (command.Result, tea.Cmd) {
 	// No arguments needed - validation implicit
-	return command.Quit(), nil
+	return command.Quit(), tea.Quit
 }
 
 func (p *Program) handleWQCommand(args []string) (command.Result, tea.Cmd) {
@@ -764,7 +736,7 @@ func (p *Program) handleWQCommand(args []string) (command.Result, tea.Cmd) {
 	}
 
 	// Then quit
-	return command.Quit(), nil
+	return command.Quit(), tea.Quit
 }
 
 // reloadCalendar reloads the calendar with current app data (synchronous version for commands)

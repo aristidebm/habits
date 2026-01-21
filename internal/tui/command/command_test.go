@@ -114,3 +114,222 @@ func TestCommandRegistration(t *testing.T) {
 		t.Error("Expected 'new-command' to be registered")
 	}
 }
+
+func TestCommandLineShowHide(t *testing.T) {
+	cl := NewCommandLine()
+
+	// Initially not visible
+	if cl.IsVisible() {
+		t.Error("Expected command line to be hidden initially")
+	}
+
+	// Show command line
+	cmd := cl.Show()
+	if cmd == nil {
+		t.Error("Expected Show() to return a command")
+	}
+
+	if !cl.IsVisible() {
+		t.Error("Expected command line to be visible after Show()")
+	}
+
+	// Hide command line
+	cl.Hide()
+	if cl.IsVisible() {
+		t.Error("Expected command line to be hidden after Hide()")
+	}
+}
+
+func TestCommandLineQuitCommands(t *testing.T) {
+	cl := NewCommandLine()
+
+	// Register quit command with alias
+	cl.RegisterCommand(Command{
+		Name:    "quit",
+		Aliases: []string{"q"},
+		Handler: func(args []string) (Result, tea.Cmd) {
+			return Quit(), tea.Quit
+		},
+	})
+
+	// Test quit command execution
+	cl.input.SetValue("quit")
+	cl.input.SetCursor(4)
+	cmd := cl.executeCommand()
+
+	if cmd == nil {
+		t.Error("Expected executeCommand to return tea.Quit for quit command")
+	}
+
+	// Test q alias
+	cl.input.SetValue("q")
+	cl.input.SetCursor(1)
+	cmd = cl.executeCommand()
+
+	if cmd == nil {
+		t.Error("Expected executeCommand to return tea.Quit for q alias")
+	}
+}
+
+func TestCommandLineUnknownCommand(t *testing.T) {
+	cl := NewCommandLine()
+
+	// Try to execute unknown command
+	cl.input.SetValue("unknown-command")
+	cl.input.SetCursor(15)
+	cmd := cl.executeCommand()
+
+	if cmd != nil {
+		t.Error("Expected executeCommand to return nil for unknown command")
+	}
+
+	// Check that error message was set
+	if cl.lastError == "" {
+		t.Error("Expected error message to be set for unknown command")
+	}
+
+	if cl.lastError != "Unknown command: unknown-command" {
+		t.Errorf("Expected specific error message, got: %s", cl.lastError)
+	}
+}
+
+func TestCommandLineEmptyInput(t *testing.T) {
+	cl := NewCommandLine()
+	cl.Show() // Make it visible
+
+	// Try to execute empty command
+	cl.input.SetValue("")
+	cl.input.SetCursor(0)
+	cmd := cl.executeCommand()
+
+	if cmd != nil {
+		t.Error("Expected executeCommand to return nil for empty input")
+	}
+
+	// Should hide the command line
+	if cl.IsVisible() {
+		t.Error("Expected command line to be hidden after empty input")
+	}
+}
+
+func TestCommandLineWithArguments(t *testing.T) {
+	cl := NewCommandLine()
+
+	executed := false
+	var receivedArgs []string
+
+	cl.RegisterCommand(Command{
+		Name: "test-args",
+		Handler: func(args []string) (Result, tea.Cmd) {
+			executed = true
+			receivedArgs = args
+			return Success("args received"), nil
+		},
+	})
+
+	// Execute command with arguments
+	cl.input.SetValue("test-args arg1 arg2 arg3")
+	cl.input.SetCursor(23)
+	cl.executeCommand()
+
+	if !executed {
+		t.Error("Command should have been executed")
+	}
+
+	if len(receivedArgs) != 3 {
+		t.Errorf("Expected 3 arguments, got %d", len(receivedArgs))
+	}
+
+	expectedArgs := []string{"arg1", "arg2", "arg3"}
+	for i, expected := range expectedArgs {
+		if i >= len(receivedArgs) || receivedArgs[i] != expected {
+			t.Errorf("Expected arg[%d] to be '%s', got '%s'", i, expected, receivedArgs[i])
+		}
+	}
+}
+
+func TestCommandLineSuccessMessage(t *testing.T) {
+	cl := NewCommandLine()
+
+	cl.RegisterCommand(Command{
+		Name: "success-test",
+		Handler: func(args []string) (Result, tea.Cmd) {
+			return Success("Operation successful"), nil
+		},
+	})
+
+	// Execute command
+	cl.input.SetValue("success-test")
+	cl.input.SetCursor(12)
+	cl.executeCommand()
+
+	// Check success message
+	if cl.lastSuccess != "Operation successful" {
+		t.Errorf("Expected success message 'Operation successful', got '%s'", cl.lastSuccess)
+	}
+
+	if cl.lastError != "" {
+		t.Errorf("Expected no error message, got '%s'", cl.lastError)
+	}
+}
+
+func TestCommandLineErrorMessage(t *testing.T) {
+	cl := NewCommandLine()
+
+	cl.RegisterCommand(Command{
+		Name: "error-test",
+		Handler: func(args []string) (Result, tea.Cmd) {
+			return Error("Something went wrong"), nil
+		},
+	})
+
+	// Execute command
+	cl.input.SetValue("error-test")
+	cl.input.SetCursor(10)
+	cl.executeCommand()
+
+	// Check error message
+	if cl.lastError != "Something went wrong" {
+		t.Errorf("Expected error message 'Something went wrong', got '%s'", cl.lastError)
+	}
+
+	if cl.lastSuccess != "" {
+		t.Errorf("Expected no success message, got '%s'", cl.lastSuccess)
+	}
+}
+
+func TestCommandLineAliasRegistration(t *testing.T) {
+	cl := NewCommandLine()
+
+	// Register command with aliases
+	// Register command with aliases
+	cl.RegisterCommand(Command{
+		Name:    "test-cmd",
+		Aliases: []string{"tc", "test"},
+		Handler: func(args []string) (Result, tea.Cmd) {
+			return Success("alias worked"), nil
+		},
+	})
+
+	// Test main command
+	if _, exists := cl.commands["test-cmd"]; !exists {
+		t.Error("Main command not registered")
+	}
+
+	// Test aliases
+	if _, exists := cl.commands["tc"]; !exists {
+		t.Error("Alias 'tc' not registered")
+	}
+
+	if _, exists := cl.commands["test"]; !exists {
+		t.Error("Alias 'test' not registered")
+	}
+
+	// Test that aliases point to same command
+	mainCmd := cl.commands["test-cmd"]
+	aliasCmd := cl.commands["tc"]
+
+	if mainCmd.Name != aliasCmd.Name {
+		t.Error("Alias should point to same command")
+	}
+}
