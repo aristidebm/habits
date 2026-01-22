@@ -29,6 +29,38 @@ type NoteEditedMsg struct {
 // ReloadMsg is sent to trigger a calendar reload
 type ReloadMsg struct{}
 
+// CalendarReloadedMsg is sent when calendar reload completes
+type CalendarReloadedMsg struct {
+	Error error
+}
+
+// HabitDeletedMsg is sent when a habit deletion completes
+type HabitDeletedMsg struct {
+	HabitID int
+	Error   error
+}
+
+// HabitRenamedMsg is sent when a habit rename completes
+type HabitRenamedMsg struct {
+	OldName string
+	NewName string
+	Error   error
+}
+
+// HabitsWrittenMsg is sent when pending habits are written to database
+type HabitsWrittenMsg struct {
+	HabitsCount  int
+	EntriesCount int
+	NotesCount   int
+	Error        error
+}
+
+// ExportCompletedMsg is sent when export operation completes
+type ExportCompletedMsg struct {
+	Path  string
+	Error error
+}
+
 // Program is the main TUI program
 type Program struct {
 	app         *app.App
@@ -189,7 +221,16 @@ func (p *Program) registerCommands() {
 // Init initializes the program
 func (p *Program) Init() tea.Cmd {
 	slog.Info("Habits app initialized", "theme", p.app.GetConfig().Theme.Name)
-	return nil
+	// Load initial entries asynchronously
+	return p.loadInitialEntriesCmd()
+}
+
+// loadInitialEntriesCmd returns a command to load initial entries
+func (p *Program) loadInitialEntriesCmd() tea.Cmd {
+	return tea.Cmd(func() tea.Msg {
+		syncEntriesToCalendar(p.app, p.calendar, false)
+		return CalendarReloadedMsg{Error: nil}
+	})
 }
 
 // Update handles messages
@@ -259,7 +300,49 @@ func (p *Program) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return p, nil
 
 	case ReloadMsg:
-		p.reloadCalendar()
+		return p, p.reloadCalendarCmd()
+
+	case CalendarReloadedMsg:
+		if msg.Error != nil {
+			p.commandLine.SetError(fmt.Sprintf("Failed to reload calendar: %s", msg.Error))
+		}
+		// Calendar is already updated in the command
+		return p, nil
+
+	case HabitDeletedMsg:
+		if msg.Error != nil {
+			p.commandLine.SetError(fmt.Sprintf("Failed to delete habit: %s", msg.Error))
+		} else {
+			p.commandLine.SetSuccess(fmt.Sprintf("Deleted habit with ID %d", msg.HabitID))
+			p.reloadCalendar()
+		}
+		return p, nil
+
+	case HabitRenamedMsg:
+		if msg.Error != nil {
+			p.commandLine.SetError(fmt.Sprintf("Failed to rename habit: %s", msg.Error))
+		} else {
+			p.commandLine.SetSuccess(fmt.Sprintf("Renamed habit: %s -> %s", msg.OldName, msg.NewName))
+			p.reloadCalendar()
+		}
+		return p, nil
+
+	case HabitsWrittenMsg:
+		if msg.Error != nil {
+			p.commandLine.SetError(fmt.Sprintf("Failed to write habits: %s", msg.Error))
+		} else {
+			msg := fmt.Sprintf("Wrote %d habits, %d entries, and %d notes to database", msg.HabitsCount, msg.EntriesCount, msg.NotesCount)
+			p.commandLine.SetSuccess(msg)
+			p.reloadCalendar()
+		}
+		return p, nil
+
+	case ExportCompletedMsg:
+		if msg.Error != nil {
+			p.commandLine.SetError(fmt.Sprintf("Failed to export: %s", msg.Error))
+		} else {
+			p.commandLine.SetSuccess(fmt.Sprintf("Exported habits to %s", msg.Path))
+		}
 		return p, nil
 	}
 
@@ -350,9 +433,8 @@ func (p *Program) handleAddCommand(args []string) (command.Result, tea.Cmd) {
 		Goal: goal,
 	})
 
-	// Reload calendar with new habits
-	p.reloadCalendar()
-	return command.Success(fmt.Sprintf("Added habit: %s (pending, use :write to save)", name)), nil
+	// Reload calendar with new habits asynchronously
+	return command.Success(fmt.Sprintf("Added habit: %s (pending, use :write to save)", name)), p.reloadCalendarCmd()
 }
 
 func (p *Program) handleDeleteCommand(args []string) (command.Result, tea.Cmd) {
@@ -389,14 +471,13 @@ func (p *Program) handleDeleteCommand(args []string) (command.Result, tea.Cmd) {
 		return command.Error(fmt.Sprintf("Habit '%s' not found", name)), nil
 	}
 
-	// Execute command
-	if err := p.app.DeleteHabit(context.Background(), habitID); err != nil {
-		return command.Error(fmt.Sprintf("Error: %s", err)), nil
-	}
-
-	// Send message to calendar about habit deletion
-	return command.Success(fmt.Sprintf("Deleted habit: %s", name)), tea.Cmd(func() tea.Msg {
-		return calendar.HabitDeletedMsg{HabitID: habitID}
+	// Execute command asynchronously
+	return command.Success(fmt.Sprintf("Deleting habit: %s", name)), tea.Cmd(func() tea.Msg {
+		err := p.app.DeleteHabit(context.Background(), habitID)
+		if err != nil {
+			return HabitDeletedMsg{HabitID: habitID, Error: err}
+		}
+		return HabitDeletedMsg{HabitID: habitID, Error: nil}
 	})
 }
 
@@ -436,13 +517,14 @@ func (p *Program) handleRenameCommand(args []string) (command.Result, tea.Cmd) {
 		}
 	}
 
-	// Rename the habit
-	if err := p.app.UpdateHabit(context.Background(), habitID, newName, habitType, goal); err != nil {
-		return command.Error(fmt.Sprintf("Error: %s", err)), nil
-	}
-
-	p.reloadCalendar()
-	return command.Success(fmt.Sprintf("Renamed habit: %s -> %s", oldName, newName)), nil
+	// Rename the habit asynchronously
+	return command.Success(fmt.Sprintf("Renaming habit: %s -> %s", oldName, newName)), tea.Cmd(func() tea.Msg {
+		err := p.app.UpdateHabit(context.Background(), habitID, newName, habitType, goal)
+		if err != nil {
+			return HabitRenamedMsg{OldName: oldName, NewName: newName, Error: err}
+		}
+		return HabitRenamedMsg{OldName: oldName, NewName: newName, Error: nil}
+	})
 }
 
 func (p *Program) handleNoteCommand(args []string) (command.Result, tea.Cmd) {
@@ -614,112 +696,103 @@ func (p *Program) handleWriteCommand(args []string) (command.Result, tea.Cmd) {
 		return command.Error("No pending habits, entries, or notes to write"), nil
 	}
 
-	if err := p.calendar.WritePendingHabits(func(habits []struct {
-		Name      string
-		HabitType string
-		Goal      float64
-	}) ([]int, error) {
-		habitInputs := make([]struct {
+	// Write pending habits asynchronously
+	return command.Success("Writing pending habits to database..."), tea.Cmd(func() tea.Msg {
+		err := p.calendar.WritePendingHabits(func(habits []struct {
 			Name      string
-			HabitType app.HabitType
+			HabitType string
 			Goal      float64
-		}, len(habits))
-
-		for i, h := range habits {
-			var hType app.HabitType
-			switch h.HabitType {
-			case "bit":
-				hType = app.HabitTypeBit
-			case "count":
-				hType = app.HabitTypeCount
-			case "float":
-				hType = app.HabitTypeFloat
-			default:
-				return nil, fmt.Errorf("invalid habit type: %s", h.HabitType)
-			}
-			habitInputs[i] = struct {
+		}) ([]int, error) {
+			habitInputs := make([]struct {
 				Name      string
 				HabitType app.HabitType
 				Goal      float64
-			}{
-				Name:      h.Name,
-				HabitType: hType,
-				Goal:      h.Goal,
+			}, len(habits))
+
+			for i, h := range habits {
+				var hType app.HabitType
+				switch h.HabitType {
+				case "bit":
+					hType = app.HabitTypeBit
+				case "count":
+					hType = app.HabitTypeCount
+				case "float":
+					hType = app.HabitTypeFloat
+				default:
+					return nil, fmt.Errorf("invalid habit type: %s", h.HabitType)
+				}
+				habitInputs[i] = struct {
+					Name      string
+					HabitType app.HabitType
+					Goal      float64
+				}{
+					Name:      h.Name,
+					HabitType: hType,
+					Goal:      h.Goal,
+				}
 			}
-		}
 
-		createdHabits, err := p.app.CreateHabitsBulk(context.Background(), habitInputs)
+			createdHabits, err := p.app.CreateHabitsBulk(context.Background(), habitInputs)
+			if err != nil {
+				return nil, err
+			}
+
+			ids := make([]int, len(createdHabits))
+			for i, h := range createdHabits {
+				ids[i] = h.ID
+			}
+
+			return ids, nil
+		}, func(habitID int, date time.Time, value float64) error {
+			return p.app.UpsertEntry(context.Background(), habitID, date, value)
+		}, func(habitEntryID int, note string) error {
+			return p.app.UpsertNote(context.Background(), habitEntryID, note)
+		}, func(habitID int, date time.Time) (int, error) {
+			entry, err := p.app.GetEntry(context.Background(), habitID, date)
+			if err != nil {
+				return 0, err
+			}
+			if entry == nil {
+				return 0, nil
+			}
+			return entry.ID, nil
+		})
+
 		if err != nil {
-			return nil, err
+			return HabitsWrittenMsg{Error: err}
 		}
 
-		ids := make([]int, len(createdHabits))
-		for i, h := range createdHabits {
-			ids[i] = h.ID
-		}
-
-		return ids, nil
-	}, func(habitID int, date time.Time, value float64) error {
-		return p.app.UpsertEntry(context.Background(), habitID, date, value)
-	}, func(habitEntryID int, note string) error {
-		return p.app.UpsertNote(context.Background(), habitEntryID, note)
-	}, func(habitID int, date time.Time) (int, error) {
-		entry, err := p.app.GetEntry(context.Background(), habitID, date)
-		if err != nil {
-			return 0, err
-		}
-		if entry == nil {
-			return 0, nil
-		}
-		return entry.ID, nil
-	}); err != nil {
-		return command.Error(fmt.Sprintf("Error: %s", err)), nil
-	}
-
-	// Collect IDs of entries marked for deletion (pending_deletion status in UI)
-	var entriesToDelete []int
-	for _, entry := range pendingEntries {
-		if entry.Status == calendar.HabitEntryStatusPendingDeletion {
-			// Find the database entry ID for this habit/date combination
-			for _, habit := range p.app.GetHabits(context.Background()) {
-				if habit.Name == entry.HabitName {
-					dbEntry, err := p.app.GetEntry(context.Background(), habit.ID, entry.Date)
-					if err == nil && dbEntry != nil {
-						entriesToDelete = append(entriesToDelete, dbEntry.ID)
+		// Collect IDs of entries marked for deletion (pending_deletion status in UI)
+		var entriesToDelete []int
+		for _, entry := range pendingEntries {
+			if entry.Status == calendar.HabitEntryStatusPendingDeletion {
+				// Find the database entry ID for this habit/date combination
+				for _, habit := range p.app.GetHabits(context.Background()) {
+					if habit.Name == entry.HabitName {
+						dbEntry, err := p.app.GetEntry(context.Background(), habit.ID, entry.Date)
+						if err == nil && dbEntry != nil {
+							entriesToDelete = append(entriesToDelete, dbEntry.ID)
+						}
+						break
 					}
-					break
 				}
 			}
 		}
-	}
 
-	// Batch delete entries marked for deletion
-	if len(entriesToDelete) > 0 {
-		if err := p.app.DeleteEntriesByIDs(context.Background(), entriesToDelete); err != nil {
-			return command.Error(fmt.Sprintf("Error deleting pending entries: %s", err)), nil
+		// Batch delete entries marked for deletion
+		if len(entriesToDelete) > 0 {
+			if err := p.app.DeleteEntriesByIDs(context.Background(), entriesToDelete); err != nil {
+				return HabitsWrittenMsg{Error: fmt.Errorf("failed to delete entries: %w", err)}
+			}
 		}
-	}
 
-	msg := fmt.Sprintf("Wrote %d habits, %d entries, and %d notes to database", len(pendingHabits), len(pendingEntries), pendingNotesCount)
-	if len(entriesToDelete) > 0 {
-		msg += fmt.Sprintf(" (deleted %d entries)", len(entriesToDelete))
-	}
-
-	// Send message to calendar about entry deletions
-	var cmds []tea.Cmd
-	if len(entriesToDelete) > 0 {
-		cmds = append(cmds, tea.Cmd(func() tea.Msg {
-			return calendar.EntryDeletedMsg{EntryIDs: entriesToDelete}
-		}))
-	}
-
-	// Reload calendar to reflect changes
-	cmds = append(cmds, tea.Cmd(func() tea.Msg {
-		return ReloadMsg{}
-	}))
-
-	// Return success with commands
-	return command.Success(msg), tea.Batch(cmds...)
+		return HabitsWrittenMsg{
+			HabitsCount:  len(pendingHabits),
+			EntriesCount: len(pendingEntries),
+			NotesCount:   pendingNotesCount,
+			Error:        nil,
+		}
+	})
 }
 
 func (p *Program) handleNextMonthCommand(args []string) (command.Result, tea.Cmd) {
@@ -748,6 +821,46 @@ func (p *Program) handleWQCommand(args []string) (command.Result, tea.Cmd) {
 
 	// Then quit
 	return command.Quit(), tea.Quit
+}
+
+// reloadCalendarCmd returns a command to reload calendar asynchronously
+func (p *Program) reloadCalendarCmd() tea.Cmd {
+	return tea.Cmd(func() tea.Msg {
+		// Save cursor position before reload
+		currentSelectedHabit := p.calendar.GetSelectedHabit()
+		var selectedHabitName string
+		if currentSelectedHabit != nil {
+			selectedHabitName = currentSelectedHabit.Name
+		}
+		selectedDate := p.calendar.GetSelectedDate()
+
+		// Save pending habits before reload
+		pending := p.calendar.GetPendingHabits()
+
+		// Convert app habits to calendar habits
+		calendarHabits := make([]calendar.Habit, len(p.app.GetHabits(context.Background())))
+		for i, h := range p.app.GetHabits(context.Background()) {
+			calendarHabits[i] = calendar.Habit{
+				ID:      h.ID,
+				Name:    h.Name,
+				Type:    calendar.HabitType(h.Type),
+				Goal:    h.Goal,
+				Pending: false,
+			}
+		}
+
+		// Append pending habits to calendar habits list
+		calendarHabits = append(calendarHabits, pending...)
+
+		// Reload habits with cursor position preservation
+		p.calendar.ReloadHabitsWithSelection(calendarHabits, selectedHabitName, selectedDate)
+		p.calendar.Resize(p.width, p.height-2)
+
+		// Sync entries (but not pending habits - they have no entries yet)
+		syncEntriesToCalendar(p.app, p.calendar, true)
+
+		return CalendarReloadedMsg{Error: nil}
+	})
 }
 
 // reloadCalendar reloads the calendar with current app data (synchronous version for commands)
@@ -821,24 +934,27 @@ func (p *Program) handleExportCommand(args []string) (command.Result, tea.Cmd) {
 
 	path := args[0]
 
-	// Export habits and entries
-	exportHabits, err := p.app.Export(context.Background())
-	if err != nil {
-		return command.Error(fmt.Sprintf("Error exporting data: %s", err)), nil
-	}
+	// Export habits and entries asynchronously
+	return command.Success("Exporting habits to JSON..."), tea.Cmd(func() tea.Msg {
+		// Export habits and entries
+		exportHabits, err := p.app.Export(context.Background())
+		if err != nil {
+			return ExportCompletedMsg{Path: path, Error: fmt.Errorf("error exporting data: %w", err)}
+		}
 
-	// Write to JSON file (reuse TUI logic)
-	file, err := os.Create(path)
-	if err != nil {
-		return command.Error(fmt.Sprintf("Error creating file: %s", err)), nil
-	}
-	defer file.Close()
+		// Write to JSON file
+		file, err := os.Create(path)
+		if err != nil {
+			return ExportCompletedMsg{Path: path, Error: fmt.Errorf("error creating file: %w", err)}
+		}
+		defer file.Close()
 
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(exportHabits); err != nil {
-		return command.Error(fmt.Sprintf("Error writing JSON: %s", err)), nil
-	}
+		encoder := json.NewEncoder(file)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(exportHabits); err != nil {
+			return ExportCompletedMsg{Path: path, Error: fmt.Errorf("error writing JSON: %w", err)}
+		}
 
-	return command.Success(fmt.Sprintf("Exported %d habits to %s", len(exportHabits), path)), nil
+		return ExportCompletedMsg{Path: path, Error: nil}
+	})
 }

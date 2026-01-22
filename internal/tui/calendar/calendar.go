@@ -337,9 +337,9 @@ func (c *Calendar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "backspace":
-			// Decrement entry for count/float habits
+			// Decrement entry for all habit types
 			habit := c.GetSelectedHabit()
-			if habit != nil && (habit.Type == HabitTypeCount || habit.Type == HabitTypeFloat) {
+			if habit != nil {
 				c.decrementEntry(*habit, c.selectedDate)
 				c.updateViewportContent()
 			}
