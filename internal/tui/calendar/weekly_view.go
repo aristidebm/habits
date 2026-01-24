@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"example.com/habits/internal/app"
+	"example.com/habits/internal/utils"
 )
 
 // WeeklyView handles rendering of the weekly calendar view
@@ -53,9 +54,7 @@ func (w *WeeklyView) RenderHeader() string {
 	dayIndicatorLen := len(dayIndicator)
 	availableSpace := w.calendar.width - headerLen - indicatorLen - dayIndicatorLen - 6
 	spacingLen := availableSpace / 2
-	if spacingLen < 0 {
-		spacingLen = 0
-	}
+	spacingLen = max(spacingLen, 0)
 
 	headerLine := lipgloss.JoinHorizontal(
 		lipgloss.Top,
@@ -70,65 +69,45 @@ func (w *WeeklyView) RenderHeader() string {
 	// Calculate how many days can fit in the available width
 	availableWidth := w.calendar.width - 20
 	daysToShow := availableWidth / 8
-	if daysToShow < 7 {
-		daysToShow = 7
-	}
+	daysToShow = max(daysToShow, 7)
 
 	// Day names row - start from viewStartDate's weekday
-	allDayNames := []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
 	startDay := int(w.calendar.viewStartDate.Weekday())
 	if startDay == 0 {
 		startDay = 7 // Sunday becomes 7
 	}
 
-	// Create day names slice starting from the correct day
-	dayNames := allDayNames[startDay-1:]
-	dayNames = append(dayNames, allDayNames[:startDay-1]...)
 	dayNamesRow := w.styles.HabitLabel.Render("")
-	for _, dayName := range dayNames {
-		dayNamesRow += w.styles.DayName.Render(dayName)
+	for i := 0; i < daysToShow; i++ {
+		date := w.calendar.viewStartDate.AddDate(0, 0, i)
+		dayNamesRow += w.styles.DayName.Render(date.Format("Mon"))
 	}
+
+	sb.WriteString(dayNamesRow + "\n")
+
 	datesRow := w.styles.HabitLabel.Render("")
-	today := time.Now()
 	for i := 0; i < daysToShow; i++ {
 		date := w.calendar.viewStartDate.AddDate(0, 0, i)
 		dateStr := date.Format("02")
-
-		isToday := date.Year() == today.Year() &&
-			date.Month() == today.Month() &&
-			date.Day() == today.Day()
-
-		if isToday {
+		if utils.IsToday(date) {
 			datesRow += w.styles.TodayCell.Render(dateStr)
 		} else {
 			datesRow += w.styles.DateHeader.Render(dateStr)
 		}
 	}
+
+	sb.WriteString(datesRow + "\n")
+
 	todayIndicatorRow := w.styles.HabitLabel.Render("")
 	for i := 0; i < daysToShow; i++ {
 		date := w.calendar.viewStartDate.AddDate(0, 0, i)
-		isToday := date.Year() == today.Year() &&
-			date.Month() == today.Month() &&
-			date.Day() == today.Day()
-		if isToday {
+		if utils.IsToday(date) {
 			todayIndicatorRow += w.styles.Cell.Render("▼")
 		} else {
 			todayIndicatorRow += w.styles.Cell.Render("")
 		}
 	}
-	sb.WriteString(datesRow + "\n")
-	for i := 0; i < daysToShow; i++ {
-		date := w.calendar.viewStartDate.AddDate(0, 0, i)
-		isToday := date.Year() == today.Year() &&
-			date.Month() == today.Month() &&
-			date.Day() == today.Day()
 
-		if isToday {
-			todayIndicatorRow += w.styles.Cell.Render("▼")
-		} else {
-			todayIndicatorRow += w.styles.Cell.Render("")
-		}
-	}
 	sb.WriteString(todayIndicatorRow)
 
 	return sb.String()
@@ -141,9 +120,7 @@ func (w *WeeklyView) RenderContent() string {
 	// Calculate how many days can fit
 	availableWidth := w.calendar.width - 20
 	daysToShow := availableWidth / 8
-	if daysToShow < 7 {
-		daysToShow = 7
-	}
+	daysToShow = max(daysToShow, 7)
 
 	// Habit rows
 	for idx, habit := range w.calendar.habits {
