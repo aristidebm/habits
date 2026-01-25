@@ -44,9 +44,7 @@ func (m *MonthlyView) RenderContent() string {
 	// Calculate card width (7 days * 4 chars per cell + padding)
 	cardWidth := 7*4 + 4
 	cardsPerRow := m.calendar.width / cardWidth
-	if cardsPerRow < 1 {
-		cardsPerRow = 1
-	}
+	cardsPerRow = max(cardWidth, 1)
 
 	// Create habit cards
 	habitCards := make([]string, len(m.calendar.habits))
@@ -57,10 +55,7 @@ func (m *MonthlyView) RenderContent() string {
 	// Arrange cards in rows
 	for i := 0; i < len(habitCards); i += cardsPerRow {
 		end := i + cardsPerRow
-		if end > len(habitCards) {
-			end = len(habitCards)
-		}
-
+		end = min(end, len(habitCards))
 		rowCards := habitCards[i:end]
 		// Join cards horizontally
 		row := lipgloss.JoinHorizontal(lipgloss.Top, rowCards...)
@@ -100,10 +95,10 @@ func (m *MonthlyView) renderHabitCard(habit Habit, isSelected bool) string {
 	currentDay := 1
 
 	// Generate calendar grid (up to 6 rows for weeks)
-	for week := 0; week < 6; week++ {
+	for week := range 6 {
 		var weekRow string
 
-		for day := 0; day < 7; day++ {
+		for day := range 7 {
 			if (week == 0 && day < weekday) || currentDay > daysInMonth {
 				// Empty cell
 				weekRow += m.styles.Empty.Render(m.calendar.getUntrackedSymbol(ViewModeMonthly))
