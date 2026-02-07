@@ -412,10 +412,10 @@ func newPrevMonthCmd() *cobra.Command {
 // newNoteCmd creates the note command
 func newNoteCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "note <habit> <date>",
+		Use:   "note <habit_name>",
 		Short: "Add or edit a note for a habit entry",
-		Long:  `Add or edit a note for a specific habit on a specific date. Date format: YYYY-MM-DD`,
-		Args:  cobra.ExactArgs(2),
+		Long:  "Add or edit a note for a specific habit. Date defaults to today. Message can be provided via --message flag or editor.",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dbPath, _ := cmd.Flags().GetString("db")
 
@@ -430,7 +430,13 @@ func newNoteCmd() *cobra.Command {
 			}
 
 			habitName := args[0]
-			dateStr := args[1]
+			dateStr, _ := cmd.Flags().GetString("date")
+			message, _ := cmd.Flags().GetString("message")
+
+			// Default date to today if not provided
+			if dateStr == "" {
+				dateStr = time.Now().Format("2006-01-02")
+			}
 
 			// Parse date
 			date, err := time.Parse("2006-01-02", dateStr)
@@ -467,83 +473,89 @@ func newNoteCmd() *cobra.Command {
 			}
 			entryID = entry.ID
 
-			// Get existing note
-			existingNote, err := application.GetNote(context.Background(), entryID)
-			if err != nil {
-				return fmt.Errorf("failed to get existing note: %w", err)
-			}
-
-			currentNote := ""
-			if existingNote != nil {
-				currentNote = existingNote.Note
-			}
-
-			// Create temp file with context
-			tmpFile, err := os.CreateTemp("", "habit_note_*.txt")
-			if err != nil {
-				return fmt.Errorf("failed to create temp file: %w", err)
-			}
-			defer os.Remove(tmpFile.Name())
-			defer tmpFile.Close()
-
-			// Write header and existing note
-			header := fmt.Sprintf("# Habit: %s\n# Date: %s\n# Goal: %.0f\n# Status: %s\n\n",
-				habit.Name,
-				date.Format("2006-01-02"),
-				habit.Goal,
-				getEntryStatus(habit, entry),
-			)
-
-			if _, err := tmpFile.WriteString(header); err != nil {
-				return fmt.Errorf("failed to write header: %w", err)
-			}
-
-			if currentNote != "" {
-				if _, err := tmpFile.WriteString(currentNote); err != nil {
-					return fmt.Errorf("failed to write existing note: %w", err)
+			var noteContent string
+			if message != "" {
+				// Use the provided message directly
+				noteContent = message
+			} else {
+				// Use editor to get note content (existing behavior)
+				// Get existing note
+				existingNote, err := application.GetNote(context.Background(), entryID)
+				if err != nil {
+					return fmt.Errorf("failed to get existing note: %w", err)
 				}
-			}
 
-			tmpFile.Close()
+				currentNote := ""
+				if existingNote != nil {
+					currentNote = existingNote.Note
+				}
 
-			// Launch editor
-			editor := os.Getenv("EDITOR")
-			if editor == "" {
-				editor = "nano"
-			}
+				// Create temp file with context
+				tmpFile, err := os.CreateTemp("", "habit_note_*.txt")
+				if err != nil {
+					return fmt.Errorf("failed to create temp file: %w", err)
+				}
+				defer os.Remove(tmpFile.Name())
+				defer tmpFile.Close()
 
-			editorCmd := exec.Command(editor, tmpFile.Name())
-			editorCmd.Stdin = os.Stdin
-			editorCmd.Stdout = os.Stdout
-			editorCmd.Stderr = os.Stderr
+				// Write header and existing note
+				header := fmt.Sprintf("# Habit: %s\n# Date: %s\n# Goal: %.0f\n# Status: %s\n\n",
+					habit.Name,
+					date.Format("2006-01-02"),
+					habit.Goal,
+					getEntryStatus(habit, entry),
+				)
 
-			if err := editorCmd.Run(); err != nil {
-				return fmt.Errorf("editor exited with error: %w", err)
-			}
+				if _, err := tmpFile.WriteString(header); err != nil {
+					return fmt.Errorf("failed to write header: %w", err)
+				}
 
-			// Read the edited content
-			content, err := os.ReadFile(tmpFile.Name())
-			if err != nil {
-				return fmt.Errorf("failed to read edited file: %w", err)
-			}
+				if currentNote != "" {
+					if _, err := tmpFile.WriteString(currentNote); err != nil {
+						return fmt.Errorf("failed to write existing note: %w", err)
+					}
+				}
 
-			// Extract note content
-			lines := strings.Split(string(content), "\n")
-			noteContent := ""
-			inNoteSection := false
+				tmpFile.Close()
 
-			for _, line := range lines {
-				if strings.HasPrefix(line, "#") || strings.TrimSpace(line) == "" {
-					if inNoteSection {
+				// Launch editor
+				editor := os.Getenv("EDITOR")
+				if editor == "" {
+					editor = "nano"
+				}
+
+				editorCmd := exec.Command(editor, tmpFile.Name())
+				editorCmd.Stdin = os.Stdin
+				editorCmd.Stdout = os.Stdout
+				editorCmd.Stderr = os.Stderr
+
+				if err := editorCmd.Run(); err != nil {
+					return fmt.Errorf("editor exited with error: %w", err)
+				}
+
+				// Read the edited content
+				content, err := os.ReadFile(tmpFile.Name())
+				if err != nil {
+					return fmt.Errorf("failed to read edited file: %w", err)
+				}
+
+				// Extract note content
+				lines := strings.Split(string(content), "\n")
+				inNoteSection := false
+
+				for _, line := range lines {
+					if strings.HasPrefix(line, "#") || strings.TrimSpace(line) == "" {
+						if inNoteSection {
+							noteContent += line + "\n"
+						}
+					} else {
+						inNoteSection = true
 						noteContent += line + "\n"
 					}
-				} else {
-					inNoteSection = true
-					noteContent += line + "\n"
 				}
-			}
 
-			noteContent = strings.TrimSpace(noteContent)
+				noteContent = strings.TrimSpace(noteContent)
+			}
 
 			// Save the note
 			if err := application.UpsertNote(context.Background(), entryID, noteContent); err != nil {
@@ -554,6 +566,9 @@ func newNoteCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().String("date", "", "Date for the note (YYYY-MM-DD, defaults to today)")
+	cmd.Flags().String("message", "", "Message content (opens editor if not provided)")
 
 	return cmd
 }
