@@ -416,10 +416,11 @@ func (c *Calendar) scrollToSelectedHabit() {
 		cardWidth := 7*4 + 4
 		cardsPerRow := max(c.width/cardWidth, 1)
 
-		// Each card is ~10 lines tall (name + blank + 6 weeks + blank line between rows)
+		// Each card is ~10 lines tall (name + blank + 6 weeks + padding)
 		cardHeight := 10
+		rowGap := 0 // no extra separator between rows
 		rowIndex := c.selectedHabit / cardsPerRow
-		selectedY = rowIndex * cardHeight
+		selectedY = rowIndex * (cardHeight + rowGap)
 		itemHeight = cardHeight
 	}
 

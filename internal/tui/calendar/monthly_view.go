@@ -44,7 +44,7 @@ func (m *MonthlyView) RenderContent() string {
 	// Calculate card width (7 days * 4 chars per cell + padding)
 	cardWidth := 7*4 + 4
 	cardsPerRow := m.calendar.width / cardWidth
-	cardsPerRow = max(cardWidth, 1)
+	cardsPerRow = max(cardsPerRow, 1)
 
 	// Create habit cards
 	habitCards := make([]string, len(m.calendar.habits))
@@ -59,7 +59,7 @@ func (m *MonthlyView) RenderContent() string {
 		rowCards := habitCards[i:end]
 		// Join cards horizontally
 		row := lipgloss.JoinHorizontal(lipgloss.Top, rowCards...)
-		sb.WriteString(row + "\n\n")
+		sb.WriteString(row)
 	}
 
 	return sb.String()
