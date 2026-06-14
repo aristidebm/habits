@@ -360,3 +360,22 @@ func TestCalendarMessageTypes(t *testing.T) {
 		t.Errorf("Expected 3 entry IDs, got %d", len(entryDelMsg.EntryIDs))
 	}
 }
+
+func TestCalendar_scrollToSelectedHabit(t *testing.T) {
+	tests := []struct {
+		name string // description of this test case
+		// Named input parameters for receiver constructor.
+		habits      []Habit
+		config      *app.Config
+		styles      *app.Styles
+		hasNoteFunc func(habitID int, date time.Time) bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := NewCalendar(tt.habits, tt.config, tt.styles, tt.hasNoteFunc)
+			c.scrollToSelectedHabit()
+		})
+	}
+}

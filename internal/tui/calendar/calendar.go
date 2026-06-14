@@ -367,10 +367,7 @@ func (c *Calendar) updateViewportSize() {
 		headerHeight = 3 // Monthly view has less header
 	}
 
-	viewportHeight := c.height - headerHeight
-	if viewportHeight < 1 {
-		viewportHeight = 1
-	}
+	viewportHeight := max(c.height-headerHeight, 1)
 
 	c.viewport.Width = c.width
 	c.viewport.Height = viewportHeight
@@ -417,10 +414,7 @@ func (c *Calendar) scrollToSelectedHabit() {
 	case ViewModeMonthly:
 		// In monthly view, calculate based on card layout
 		cardWidth := 7*4 + 4
-		cardsPerRow := c.width / cardWidth
-		if cardsPerRow < 1 {
-			cardsPerRow = 1
-		}
+		cardsPerRow := max(c.width/cardWidth, 1)
 
 		// Each card is ~10 lines tall (name + blank + 6 weeks + blank line between rows)
 		cardHeight := 10
@@ -434,10 +428,7 @@ func (c *Calendar) scrollToSelectedHabit() {
 
 	// If selected item's bottom is below viewport, scroll down to show full item
 	if selectedBottom > c.viewport.YOffset+c.viewport.Height {
-		c.viewport.YOffset = selectedBottom - c.viewport.Height
-		if c.viewport.YOffset < 0 {
-			c.viewport.YOffset = 0
-		}
+		c.viewport.YOffset = max(selectedBottom-c.viewport.Height, 0)
 	}
 
 	// If selected item's top is above viewport, scroll up
@@ -537,10 +528,7 @@ func (c *Calendar) jumpToToday() {
 // adjustWeeklyViewToSelection adjusts the weekly view to show the selected date
 func (c *Calendar) adjustWeeklyViewToSelection() {
 	availableWidth := c.width - 20
-	daysToShow := availableWidth / 8
-	if daysToShow < 7 {
-		daysToShow = 7
-	}
+	daysToShow := max(availableWidth/8, 7)
 
 	// Calculate view end
 	viewEndDate := c.viewStartDate.AddDate(0, 0, daysToShow-1)
@@ -554,10 +542,7 @@ func (c *Calendar) adjustWeeklyViewToSelection() {
 // centerDateInView centers the given date in the weekly view based on current width
 func (c *Calendar) centerDateInView(date time.Time) {
 	availableWidth := c.width - 20
-	daysToShow := availableWidth / 8
-	if daysToShow < 7 {
-		daysToShow = 7
-	}
+	daysToShow := max(availableWidth/8, 7)
 	offset := daysToShow / 2
 	c.viewStartDate = date.AddDate(0, 0, -offset)
 }
