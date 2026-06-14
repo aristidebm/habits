@@ -17,6 +17,17 @@
       forAllSystems = nixpkgs.lib.genAttrs systems;
     in
     {
+      packages = forAllSystems (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          # go = pkgs.go_1_25;
+        in
+        {
+          default = import ./nix/package.nix { inherit pkgs; };
+        }
+      );
+
       devShells = forAllSystems (
         system:
         let
@@ -24,18 +35,13 @@
           go = pkgs.go_1_25;
         in
         {
-          default = pkgs.mkShell {
-            packages = [
-              go
-            ]
-            ++ (with pkgs; [
-              gopls # lsp
-              golangci-lint # linter
-              delve # debugger
-            ]);
+          default = import ./nix/shell.nix {
+            inherit go;
+            inherit pkgs;
           };
         }
       );
+
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixos-fmt);
     };
 }
