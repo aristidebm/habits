@@ -21,10 +21,10 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          # go = pkgs.go_1_25;
+          lib = nixpkgs.lib;
         in
         {
-          default = import ./nix/package.nix { inherit pkgs; };
+          default = import ./nix/package.nix { inherit pkgs lib; };
         }
       );
 

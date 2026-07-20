@@ -35,3 +35,6 @@ build/
 # direnv
 .direnv/
 .envrc
+
+# nix build output
+result
