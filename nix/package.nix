@@ -5,13 +5,15 @@
 
 # Check here https://github.com/NixOS/nixpkgs/blob/4975a89f37fd5e13ddd0c6539886a052ce2efc52/pkgs/build-support/go/module.nix
 # to see how buildGoModule is implemented
-
-{ pkgs, lib, ... }:
+{
+    lib,
+    buildGoModule,
+}:
 
 let
     version = "0.1.0";
 in
-pkgs.buildGoModule {
+buildGoModule {
   name = "habits";
   inherit version;
   src = ./..;

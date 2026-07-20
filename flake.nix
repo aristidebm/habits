@@ -21,10 +21,9 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          lib = nixpkgs.lib;
         in
         {
-          default = import ./nix/package.nix { inherit pkgs lib; };
+          default = pkgs.pkgs.callPackage ./nix/package.nix { };
         }
       );
 
