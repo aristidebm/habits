@@ -14,12 +14,13 @@ let
     version = "0.1.0";
 in
 buildGoModule {
-  name = "habits";
+  # use pname instead of name to follow this RFC https://github.com/NixOS/rfcs/pull/35
+  pname = "habits";
   inherit version;
   src = ./..;
   meta = {
     description = "A terminal-based habit tracking application with calendar views, multiple habit types, and note-taking capabilities.";
-    mainPogram = "habits";
+    mainProgram = "habits";
     homePage = "https://github.com/aristidebm/habits";
     licenses = [ lib.licenses.mit ];
     maintainers = [ "Aristide Bamazi" ];

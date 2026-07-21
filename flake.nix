@@ -23,7 +23,7 @@
           pkgs = nixpkgs.legacyPackages.${system};
         in
         {
-          default = pkgs.pkgs.callPackage ./nix/package.nix { };
+          default = pkgs.callPackage ./nix/package.nix { };
         }
       );
 
@@ -41,6 +41,6 @@
         }
       );
 
-      formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixos-fmt);
+      formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt-rfc-style);
     };
 }
