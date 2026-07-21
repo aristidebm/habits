@@ -31,13 +31,9 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          go = pkgs.go_1_25;
         in
         {
-          default = import ./nix/shell.nix {
-            inherit go;
-            inherit pkgs;
-          };
+          default = pkgs.callPackage ./nix/shell.nix { go = pkgs.go_1_25; };
         }
       );
 
