@@ -21,7 +21,7 @@ buildGoModule {
   meta = {
     description = "A terminal-based habit tracking application with calendar views, multiple habit types, and note-taking capabilities.";
     mainProgram = "habits";
-    homePage = "https://github.com/aristidebm/habits";
+    homepage = "https://github.com/aristidebm/habits";
     licenses = [ lib.licenses.mit ];
     maintainers = [ "Aristide Bamazi" ];
   };
